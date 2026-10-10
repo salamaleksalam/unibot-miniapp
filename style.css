@@ -82,3 +82,15 @@
 .live-line.demo{border-left:3px solid #f0b569}
 .live-line.normal{border-left:3px solid #69cab5}
 .status-strip .known-yes{background:#1b463e;color:#b0f1cb}.status-strip .known-no{background:#58352e;color:#ffc9ad}.status-strip .known-test{outline:1px dashed #d6a45a}
+
+/* ТОПЛИВО56 v0.4 — прозрачная лента сообщений и голосований */
+.community-list{display:grid;gap:10px;margin:0 0 24px}
+.community-card{background:var(--panel);border:1px solid #3e585b;border-radius:15px;padding:13px 14px;font-size:12px}
+.community-card h3{margin:0 0 5px;font-size:14px}
+.community-card .community-sub{font-size:11px;color:var(--sub);line-height:1.5;margin:5px 0}
+.community-status{display:inline-block;margin-top:6px;padding:5px 9px;border-radius:8px;font-size:10px;font-weight:800;background:#33494d;color:#d0e3e3}
+.community-status.review-confirmed{background:#204c3f;color:#c0f4db}
+.community-status.review-disputed{background:#593f2c;color:#fdd2a6}
+.community-actions{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
+.community-actions button{flex:1;min-width:120px;border:1px solid #5a7772;border-radius:10px;background:#273c3f;color:#d7f0e9;padding:10px 8px;font-size:12px;font-weight:700}
+.community-note{font-size:10px;color:#adbdc2;margin-top:8px;line-height:1.5}
