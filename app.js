@@ -9,6 +9,8 @@
   const $ = id => document.getElementById(id);
   const state = { tab:'map', filter:'all', selected:loadSelection(), map:null, markers:[], events: FEED_URL ? [] : demoEvents, feedState: FEED_URL ? 'loading' : 'demo' };
   let toastTimer, feedSequence = 0;
+  let mapResizeObserver;
+  const RUSSIA_BOUNDS = [[41,19],[78,190]];
   function loadSelection() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
@@ -40,7 +42,7 @@
     });
     $('page-scroll').scrollTop=0;
     if(name==='map') {
-      if(!state.map) initMap(); else setTimeout(()=>state.map.invalidateSize(),75);
+      if(!state.map) initMap(); else scheduleMapRefresh();
     }
     if(name==='regions') renderRegions();
     if(name==='profile') renderProfile();
@@ -144,16 +146,49 @@
       popup.append(select);marker.bindPopup(popup,{closeButton:true,maxWidth:260}).addTo(state.map);state.markers.push(marker);
     });
   }
+  function refreshMapSize() {
+    if (!state.map || state.tab !== 'map') return;
+    const box = $('map').getBoundingClientRect();
+    if (box.width < 100 || box.height < 100) return;
+    state.map.invalidateSize({pan:false, animate:false});
+  }
+  function scheduleMapRefresh() {
+    [0,150,450,900,1600].forEach(delay => setTimeout(refreshMapSize, delay));
+  }
+  function showRussiaOverview() {
+    if (!state.map) return;
+    refreshMapSize();
+    state.map.fitBounds(RUSSIA_BOUNDS, {padding:[15,15], maxZoom:3, animate:false});
+    scheduleMapRefresh();
+  }
   function initMap() {
     if(typeof window.L==='undefined') { $('map-fallback').hidden=false;return; }
     try {
-      const map=L.map('map',{zoomControl:true,scrollWheelZoom:false,preferCanvas:true,worldCopyJump:false,minZoom:2});
-      map.setView([60,78],3);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        maxZoom:18,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
-      }).addTo(map);
-      state.map=map; drawMarkers();setTimeout(()=>map.invalidateSize(),100);
-    } catch (_) { $('map-fallback').hidden=false; }
+      const map=L.map('map',{
+        zoomControl:true,scrollWheelZoom:false,preferCanvas:true,
+        worldCopyJump:false,minZoom:1,zoomSnap:0.25,zoomDelta:0.5
+      });
+      state.map=map;
+      map.setView([60,98],2);
+      const tileLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        maxZoom:18,
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+      });
+      tileLayer.addTo(map);
+      drawMarkers();
+      showRussiaOverview();
+      if (typeof ResizeObserver !== 'undefined') {
+        mapResizeObserver = new ResizeObserver(() => refreshMapSize());
+        mapResizeObserver.observe($('map'));
+      }
+      window.addEventListener('resize', scheduleMapRefresh, {passive:true});
+      window.addEventListener('orientationchange', scheduleMapRefresh, {passive:true});
+      window.addEventListener('pageshow', scheduleMapRefresh);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) scheduleMapRefresh();
+      });
+      scheduleMapRefresh();
+    } catch (error) { console.error('Map init failed', error); $('map-fallback').hidden=false; }
   }
   function setFeedStatus(name) {
     state.feedState=name;
@@ -218,7 +253,7 @@
     }));
     $('show-all-events').addEventListener('click',()=>showTab('events'));
     $('region-search').addEventListener('input',renderRegions);
-    $('reset-map').addEventListener('click',()=>state.map?state.map.setView([60,78],3,{animate:true}):showToast('Карта пока недоступна'));
+    $('reset-map').addEventListener('click',()=>state.map?showRussiaOverview():showToast('Карта пока недоступна'));
     setFeedStatus(FEED_URL?'loading':'demo');
     renderEvents();renderRegions();renderMaxUser();renderProfile();initLinks();showTab('map');
     if(FEED_URL) {

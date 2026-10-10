@@ -38,3 +38,62 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 /* Подключённая лента: видимая ссылка на первоисточник */
 .source-link { display:inline-block; margin-top:8px; font-size:12px; font-weight:700; color:#8ad5ff; text-decoration:underline; text-underline-offset:3px; }
 .source-link:hover { color:#c5edff; }
+
+
+/* v2.1: local critical Leaflet styles.
+   Some in-app Android WebViews display unpositioned map tiles if the CDN
+   stylesheet is unavailable. These rules keep the map functional there. */
+.leaflet-container { overflow:hidden; position:relative; outline:0; -webkit-tap-highlight-color:transparent; touch-action:pan-x pan-y; }
+.leaflet-container, .leaflet-container * { box-sizing:content-box; }
+.leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow,
+.leaflet-tile-container, .leaflet-pane > svg, .leaflet-pane > canvas,
+.leaflet-zoom-box, .leaflet-image-layer, .leaflet-layer {
+  position:absolute; left:0; top:0;
+}
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-image-layer {
+  max-width:none!important; max-height:none!important;
+}
+.leaflet-tile { max-width:none!important; max-height:none!important; width:256px; height:256px; visibility:hidden; }
+.leaflet-tile-loaded { visibility:visible; }
+.leaflet-pane { z-index:400; }
+.leaflet-tile-pane { z-index:200; }
+.leaflet-overlay-pane { z-index:400; }
+.leaflet-shadow-pane { z-index:500; }
+.leaflet-marker-pane { z-index:600; }
+.leaflet-tooltip-pane { z-index:650; }
+.leaflet-popup-pane { z-index:700; }
+.leaflet-map-pane canvas { z-index:100; }
+.leaflet-map-pane svg { z-index:200; }
+.leaflet-zoom-animated { transform-origin:0 0; }
+.leaflet-zoom-anim .leaflet-zoom-animated { transition:transform .25s cubic-bezier(0,0,.25,1); }
+.leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow { user-select:none; -webkit-user-select:none; -webkit-user-drag:none; }
+.leaflet-container a { -webkit-tap-highlight-color:transparent; }
+.leaflet-container img { border:0; }
+.leaflet-top, .leaflet-bottom { position:absolute; z-index:1000; pointer-events:none; }
+.leaflet-top { top:0; } .leaflet-right { right:0; }
+.leaflet-bottom { bottom:0; } .leaflet-left { left:0; }
+.leaflet-control { position:relative; z-index:800; pointer-events:auto; float:left; clear:both; }
+.leaflet-right .leaflet-control { float:right; }
+.leaflet-top .leaflet-control { margin-top:10px; }
+.leaflet-bottom .leaflet-control { margin-bottom:10px; }
+.leaflet-left .leaflet-control { margin-left:10px; }
+.leaflet-right .leaflet-control { margin-right:10px; }
+.leaflet-control-zoom a { display:block; text-align:center; width:30px; height:30px; line-height:30px; font-size:21px; font-weight:bold; text-decoration:none; }
+.leaflet-control-zoom a:first-child { border-bottom:1px solid #394b66; }
+.leaflet-control-attribution { background:#fffd; padding:1px 5px; font:9px/1.5 Arial,sans-serif; }
+.leaflet-control-attribution a { color:#2364aa; }
+.leaflet-bar a.leaflet-disabled { opacity:.5; cursor:default; }
+.leaflet-popup { position:absolute; text-align:center; margin-bottom:20px; }
+.leaflet-popup-content-wrapper { padding:1px; text-align:left; }
+.leaflet-popup-content { line-height:1.4; }
+.leaflet-popup-tip-container { position:absolute; left:50%; margin-left:-20px; width:40px; height:20px; overflow:hidden; }
+.leaflet-popup-tip { width:17px; height:17px; transform:translate(11px,-10px) rotate(45deg); }
+.leaflet-popup-close-button { position:absolute; top:0; right:0; padding:4px 5px 0 0; border:0; text-align:center; font-size:18px; font-weight:bold; text-decoration:none; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#151f32; box-shadow:0 3px 14px rgba(0,0,0,.35); }
+.leaflet-fade-anim .leaflet-popup { opacity:0; transition:opacity .2s linear; }
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup { opacity:1; }
+.leaflet-container .leaflet-control-container { pointer-events:none; }
+.leaflet-container .leaflet-control { pointer-events:auto; }
