@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
-  <meta name="description" content="Демонстрация мини-приложения MAX для информирования о проверенных официальных предупреждениях по регионам.">
-  <title>Сигнал рядом · MAX Mini App · Демо</title>
+  <meta name="description" content="Мини-приложение MAX с лентой проверяемых официальных региональных предупреждений.">
+  <title>Сигнал рядом · MAX Mini App</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoV7xQ8S7v+vFw=" crossorigin="">
   <link rel="stylesheet" href="style.css">
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script defer src="data.js"></script>
+  <script defer src="config.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
@@ -26,27 +27,27 @@
     <div class="page-scroll" id="page-scroll">
       <div class="mode-banner" role="status">
         <span class="mode-light" aria-hidden="true"></span>
-        <div><b>ДЕМО-ВЕРСИЯ</b><p>Данные вымышленные. Реальные предупреждения и рассылки не подключены.</p></div>
+        <div><b id="feed-banner-title">ДЕМО-ВЕРСИЯ</b><p id="feed-banner-description">Данные вымышленные. Реальные предупреждения и рассылки не подключены.</p></div>
       </div>
 
       <section class="tab-section active" id="view-map" aria-labelledby="nav-map">
-        <div class="section-title"><div><span class="eyebrow">ВАЖНОЕ ПО РЕГИОНАМ</span><h1>Карта предупреждений</h1></div><span class="status-pill">● ПРОТОТИП</span></div>
+        <div class="section-title"><div><span class="eyebrow">ВАЖНОЕ ПО РЕГИОНАМ</span><h1>Карта предупреждений</h1></div><span class="status-pill" id="feed-status">● ПРОТОТИП</span></div>
         <div class="map-toolbar"><div><strong id="map-summary">Пример отображения статусов</strong><small>Точки показывают центры регионов, а не координаты происшествий</small></div><button class="icon-btn" id="reset-map" type="button" aria-label="Показать всю карту" title="Показать всю карту">⌖</button></div>
         <div class="map-wrap">
           <div id="map" role="application" aria-label="Интерактивная карта демонстрационных статусов регионов"></div>
           <div id="map-fallback" class="map-fallback" hidden><b>Не удалось загрузить карту</b><span>Для карты требуется подключение к интернету. Остальные разделы работают.</span></div>
-          <div class="map-corner"><span class="pulse-dot"></span> Учебные отметки</div>
+          <div class="map-corner" id="map-corner"><span class="pulse-dot"></span> Учебные отметки</div>
         </div>
-        <div class="legend" aria-label="Обозначения"><span><i class="legend-dot red"></i>Учебное предупреждение</span><span><i class="legend-dot green"></i>Пример отмены</span><span><i class="legend-dot muted"></i>Нет сведений</span></div>
-        <div class="info-note"><span class="info-symbol">i</span><p>Отсутствие отметки <b>не означает безопасность</b>. В рабочей версии будут отображаться только официальные предупреждения с указанием источника и времени.</p></div>
-        <div class="row-heading"><h2>Примеры сообщений</h2><button class="text-btn" id="show-all-events" type="button">Все примеры →</button></div>
+        <div class="legend" aria-label="Обозначения"><span><i class="legend-dot red"></i>Предупреждение</span><span><i class="legend-dot green"></i>Отмена предупреждения</span><span><i class="legend-dot muted"></i>Нет сведений</span></div>
+        <div class="info-note"><span class="info-symbol">i</span><p>Отсутствие отметки <b>не означает безопасность</b>. Данные сервиса не заменяют официальные каналы оповещения. Проверяйте первоисточник и время публикации.</p></div>
+        <div class="row-heading"><h2 id="map-feed-heading">Примеры сообщений</h2><button class="text-btn" id="show-all-events" type="button">Все события →</button></div>
         <div id="map-event-list" class="event-list"></div>
       </section>
 
       <section class="tab-section" id="view-events" aria-labelledby="nav-events">
         <div class="section-title"><div><span class="eyebrow">ЛЕНТА СОБЫТИЙ</span><h1>Предупреждения</h1></div></div>
-        <p class="section-caption">Ниже — учебные примеры оформления сообщений, не отражающие реальную обстановку.</p>
-        <div class="filter-row"><button class="filter active" data-event-filter="all" type="button">Все</button><button class="filter" data-event-filter="alert" type="button">Примеры тревог</button><button class="filter" data-event-filter="cancel" type="button">Примеры отмен</button></div>
+        <p class="section-caption" id="feed-caption">Ниже — учебные примеры оформления сообщений, не отражающие реальную обстановку.</p>
+        <div class="filter-row"><button class="filter active" data-event-filter="all" type="button">Все</button><button class="filter" data-event-filter="alert" type="button">Предупреждения</button><button class="filter" data-event-filter="cancel" type="button">Отмены</button></div>
         <div id="all-event-list" class="event-list large"></div>
       </section>
 

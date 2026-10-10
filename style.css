@@ -34,3 +34,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 @media(min-width:620px){body{padding:20px 0}.app{height:calc(100dvh - 40px);min-height:620px;border:1px solid #3a4a63;border-radius:24px;overflow:hidden}.topbar{padding-top:24px}}
 @media(max-width:365px){.topbar{padding-left:15px;padding-right:15px}.page-scroll{padding-left:15px;padding-right:15px}.section-title h1{font-size:22px}.map-wrap{height:310px}.brand strong{font-size:13px}.status-pill{font-size:8px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Подключённая лента: видимая ссылка на первоисточник */
+.source-link { display:inline-block; margin-top:8px; font-size:12px; font-weight:700; color:#8ad5ff; text-decoration:underline; text-underline-offset:3px; }
+.source-link:hover { color:#c5edff; }
