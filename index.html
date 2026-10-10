@@ -1,82 +1,62 @@
 <!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0b1020">
-  <meta name="description" content="Мини-приложение MAX с лентой проверяемых официальных региональных предупреждений.">
-  <title>Сигнал рядом · MAX Mini App</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoV7xQ8S7v+vFw=" crossorigin="">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=2.1">
-  <script src="https://st.max.ru/js/max-web-app.js"></script>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="data.js?v=2.1"></script>
-  <script defer src="config.js?v=2.1"></script>
-  <script defer src="app.js?v=2.1"></script>
-</head>
-<body>
-  <div class="background-glow" aria-hidden="true"></div>
-  <main class="app" id="app">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true"><span></span><span></span><i></i></div>
-        <div><strong>СИГНАЛ РЯДОМ</strong><small>мини-приложение · UniBot</small></div>
-      </div>
-      <a class="max-chip" href="https://max.ru/se14329885_bot" id="header-bot-link" title="Открыть UniBot в MAX">MAX <span class="chevron">↗</span></a>
-    </header>
-    <div class="page-scroll" id="page-scroll">
-      <div class="mode-banner" role="status">
-        <span class="mode-light" aria-hidden="true"></span>
-        <div><b id="feed-banner-title">ДЕМО-ВЕРСИЯ</b><p id="feed-banner-description">Данные вымышленные. Реальные предупреждения и рассылки не подключены.</p></div>
-      </div>
-
-      <section class="tab-section active" id="view-map" aria-labelledby="nav-map">
-        <div class="section-title"><div><span class="eyebrow">ВАЖНОЕ ПО РЕГИОНАМ</span><h1>Карта предупреждений</h1></div><span class="status-pill" id="feed-status">● ПРОТОТИП</span></div>
-        <div class="map-toolbar"><div><strong id="map-summary">Пример отображения статусов</strong><small>Точки показывают центры регионов, а не координаты происшествий</small></div><button class="icon-btn" id="reset-map" type="button" aria-label="Показать всю карту" title="Показать всю карту">⌖</button></div>
-        <div class="map-wrap">
-          <div id="map" role="application" aria-label="Интерактивная карта демонстрационных статусов регионов"></div>
-          <div id="map-fallback" class="map-fallback" hidden><b>Не удалось загрузить карту</b><span>Для карты требуется подключение к интернету. Остальные разделы работают.</span></div>
-          <div class="map-corner" id="map-corner"><span class="pulse-dot"></span> Учебные отметки</div>
-        </div>
-        <div class="legend" aria-label="Обозначения"><span><i class="legend-dot red"></i>Предупреждение</span><span><i class="legend-dot green"></i>Отмена предупреждения</span><span><i class="legend-dot muted"></i>Нет сведений</span></div>
-        <div class="info-note"><span class="info-symbol">i</span><p>Отсутствие отметки <b>не означает безопасность</b>. Данные сервиса не заменяют официальные каналы оповещения. Проверяйте первоисточник и время публикации.</p></div>
-        <div class="row-heading"><h2 id="map-feed-heading">Примеры сообщений</h2><button class="text-btn" id="show-all-events" type="button">Все события →</button></div>
-        <div id="map-event-list" class="event-list"></div>
-      </section>
-
-      <section class="tab-section" id="view-events" aria-labelledby="nav-events">
-        <div class="section-title"><div><span class="eyebrow">ЛЕНТА СОБЫТИЙ</span><h1>Предупреждения</h1></div></div>
-        <p class="section-caption" id="feed-caption">Ниже — учебные примеры оформления сообщений, не отражающие реальную обстановку.</p>
-        <div class="filter-row"><button class="filter active" data-event-filter="all" type="button">Все</button><button class="filter" data-event-filter="alert" type="button">Предупреждения</button><button class="filter" data-event-filter="cancel" type="button">Отмены</button></div>
-        <div id="all-event-list" class="event-list large"></div>
-      </section>
-
-      <section class="tab-section" id="view-regions" aria-labelledby="nav-regions">
-        <div class="section-title"><div><span class="eyebrow">ПЕРСОНАЛИЗАЦИЯ</span><h1>Мои регионы</h1></div><span class="counter-pill" id="region-count">0 выбрано</span></div>
-        <p class="section-caption">Отметь территории, которые хочешь отслеживать. Пока выбор сохраняется только на этом устройстве — серверная подписка и уведомления ещё не подключены.</p>
-        <label class="search-box"><span class="search-icon">⌕</span><input type="search" autocomplete="off" id="region-search" placeholder="Найти регион…"><span class="search-kbd">ПОИСК</span></label>
-        <div id="selected-chips" class="selected-chips"></div>
-        <div class="row-heading region-list-heading"><h2>Список регионов</h2><small id="region-list-count"></small></div>
-        <div id="region-list" class="region-list"></div>
-        <p class="footnote">Это демонстрационный список регионов. Полный справочник и подписки добавим при подключении серверной части.</p>
-      </section>
-
-      <section class="tab-section" id="view-profile" aria-labelledby="nav-profile">
-        <div class="section-title"><div><span class="eyebrow">ТВОЁ ПРОСТРАНСТВО</span><h1>Профиль и настройки</h1></div></div>
-        <div class="profile-card"><div class="profile-avatar" id="profile-avatar">U</div><div class="profile-info"><b id="profile-name">Гость MAX</b><span id="profile-subtitle">Демонстрационный режим</span></div><span class="profile-icon">✦</span></div>
-        <div class="setting-card"><div class="setting-row"><span class="setting-icon">◎</span><div><b>Выбранные регионы</b><small>Хранятся локально на устройстве</small></div><span class="setting-value" id="profile-regions">0</span></div><div class="divider"></div><div class="setting-row"><span class="setting-icon">◇</span><div><b>Уведомления MAX</b><small>Будут доступны после подключения бэкенда</small></div><span class="coming-pill">Скоро</span></div><div class="divider"></div><div class="setting-row"><span class="setting-icon">⊞</span><div><b>Проверка событий</b><small>Публикация после подтверждения источника</small></div><span class="coming-pill">Скоро</span></div></div>
-        <a class="primary-button" href="https://max.ru/se14329885_bot" id="profile-bot-link">Открыть UniBot в MAX <span>↗</span></a>
-        <div class="fineprint"><b>О проекте</b><p>Рабочее название — «Сигнал рядом». Мини-приложение создаётся для отображения подтверждённых гражданских предупреждений на уровне регионов. Не является официальной системой оповещения.</p><p>Никогда не полагайтесь на этот сервис как на единственный источник информации об опасности.</p></div>
-      </section>
-    </div>
-    <nav class="bottom-nav" aria-label="Разделы приложения">
-      <button class="nav-item active" id="nav-map" data-tab="map" type="button" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><span>Карта</span></button>
-      <button class="nav-item" id="nav-events" data-tab="events" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg><span>События</span></button>
-      <button class="nav-item" id="nav-regions" data-tab="regions" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-12a7 7 0 0 0-14 0c0 6 7 12 7 12Z"/><circle cx="12" cy="9" r="2.2"/></svg><span>Мои регионы</span></button>
-      <button class="nav-item" id="nav-profile" data-tab="profile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Профиль</span></button>
-    </nav>
-  </main>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-</body>
-</html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101920"><meta name="description" content="ТОПЛИВО56 — адресный каталог АЗС Оренбурга по районам и сетям">
+<title>ТОПЛИВО56 • Оренбург</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css?v=5.0.1">
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script defer src="stations.js?v=5.0.1"></script><script defer src="config.js?v=5.0.1"></script><script defer src="app.js?v=5.0.1"></script>
+</head><body><div class="app-shell">
+<header class="topbar"><div class="logo-icon" aria-hidden="true">⛽</div><div class="title-block"><b>ТОПЛИВО<span>56</span></b><small>ОРЕНБУРГ • МИНИ-ПРИЛОЖЕНИЕ MAX</small></div><div class="pilot-pill">ПИЛОТ</div></header>
+<main class="scroll-area" id="scroll-area">
+<section class="section active" id="tab-map">
+<div class="hero"><div class="hero-kicker"><span class="circle-status"></span> ТОЛЬКО БЕНЗИН И ДИЗЕЛЬ</div><h1>Топливо <em>рядом.</em><br>Без лишнего шума.</h1><p>Адреса по районам и сетям Оренбурга, избранные АЗС и быстрые сообщения от водителей.</p><div class="summary-grid"><div><strong id="summary-total">—</strong><span>в справочнике</span></div><div><strong id="summary-onmap">—</strong><span>на карте</span></div><div><strong id="summary-drafts">0</strong><span>моих тестовых отметок</span></div></div></div>
+<div class="notice"><span>ⓘ</span><p><b>Пилот.</b> Адреса и районы предварительные. Сведения о топливе появляются только при наличии опубликованных записей в тестовой базе, а не в реальном времени. Быстрые сообщения водителей пока локальные.</p></div><div class="api-connection" id="api-connection" aria-live="polite">○ База не настроена</div><button class="outline-btn reload-feed" id="reload-feed" type="button">↻ Обновить данные с базы</button>
+<div class="section-heading"><div><span class="eyebrow">ОРЕНБУРГ</span><h2>АЗС на карте</h2></div><button class="secondary small" id="reset-map" type="button">Обзор ↗</button></div>
+<div class="map-frame"><div id="map" aria-label="Карта бензиновых и дизельных АЗС Оренбурга"></div><div class="map-overlay top">● Точки с известными координатами</div><div class="map-error" id="map-error" hidden>Карта недоступна. Справочник адресов работает.</div></div>
+<div class="map-foot"><span><i class="legend-marker"></i> Точки из справочника, статус неизвестен</span><button id="open-list-from-map" type="button">По районам →</button></div>
+<div class="section-heading stacked"><div><span class="eyebrow">БЫСТРЫЙ ДОСТУП</span><h2>Избранные АЗС</h2></div></div><div id="map-favorites" class="stack-cards"></div>
+<div class="example-box"><div class="example-tag">ПРИМЕР БУДУЩЕГО УВЕДОМЛЕНИЯ</div><strong>⛽ Лукойл · Шарлыкское шоссе, 11</strong><p>Форд • 324 сообщил: АИ-95 отсутствует.<br>Рено • 123 и Мазда • 376 подтвердили.</p><button class="text-btn" id="show-example" type="button">Как будут отображаться подтверждения →</button><small>Вымышленные участники и событие. Не реальные сведения.</small></div>
+</section>
+<section class="section" id="tab-list">
+<div class="section-heading intro"><div><span class="eyebrow">СПРАВОЧНИК ОРЕНБУРГА</span><h1>АЗС по районам</h1></div><span class="count-badge" id="list-count">—</span></div>
+<p class="section-sub">Здесь указаны адреса АЗС. Небольшие сети выделены особой меткой; это <b>не означает</b>, что топливо на них гарантированно есть или стоит дороже.</p>
+<label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input id="search" type="search" placeholder="Улица, адрес или название АЗС…" autocomplete="off"></label>
+<div class="filter-name">Район города</div><div class="district-filters" id="district-filters"></div>
+<div class="filter-name">Сеть / тип АЗС</div><div class="brand-filters" id="brand-filters"></div>
+<div class="filter-name">Топливо <span>выбор без проверки наличия</span></div><div class="fuel-filters" id="fuel-filters"></div>
+<div class="results-note" id="results-note"></div><div id="list-stations" class="district-groups"></div>
+</section>
+<section class="section" id="tab-subscriptions">
+<div class="section-heading intro"><div><span class="eyebrow">ПОДБОР УВЕДОМЛЕНИЙ</span><h1>Мои подписки</h1></div></div>
+<div class="sub-box"><div class="sub-icon">🔔</div><div><b>Настройки работают как предварительная конфигурация</b><p>Сохраняются на этом устройстве. Реальные сообщения MAX ещё не отправляются: нужна защищённая серверная обработка подписок.</p></div></div>
+<div class="setting-panel"><h3>О каких АЗС сообщать?</h3><div class="choice-grid" id="scope-choices"></div><p class="helper" id="scope-helper"></p>
+<div id="subscribe-district-section"><div class="filter-name">Районы</div><div class="check-stack" id="sub-districts"></div></div>
+<div id="subscribe-brand-section"><div class="filter-name">Сети и независимые АЗС</div><div class="check-stack" id="sub-brands"></div></div>
+<div id="subscribe-favs-section"><div class="filter-name">Избранные станции</div><div id="sub-favorites"></div><button type="button" class="outline-btn" id="browse-for-favs">Добавить АЗС в избранное</button></div>
+</div>
+<div class="setting-panel"><h3>О каких изменениях?</h3><div class="check-stack" id="sub-events"></div><div class="filter-name">Моё топливо</div><div class="fuel-filters" id="my-fuel-choices"></div>
+<div class="filter-name">Режим доставки</div><div class="choice-grid" id="frequency-choices"></div><p class="helper">Обычные изменения будут собираться в сводку; значимые закрытия и восстановление работы — приоритетные. Повторы одного события объединяются.</p>
+<label class="toggle-line"><span><b>Тихие часы 22:00–08:00</b><small>По местному времени Оренбурга</small></span><input id="quiet-hours" type="checkbox"></label>
+<label class="toggle-line"><span><b>Недельная сводка по понедельникам</b><small>В 09:00, если включено</small></span><input id="weekly-digest" type="checkbox"></label>
+<button class="main-btn" id="save-subs" type="button">Сохранить настройки на устройстве</button></div>
+</section>
+<section class="section" id="tab-profile">
+<div class="section-heading intro"><div><span class="eyebrow">ВКЛАД В СООБЩЕСТВО</span><h1>Профиль и рейтинг</h1></div></div>
+<div class="profile-card"><div id="avatar" class="avatar">56</div><div><b id="profile-name">Водитель Оренбурга</b><span>Псевдоним для будущих публикаций</span></div></div>
+<div class="setting-panel"><h3>Мой псевдоним</h3><p class="helper">Например, «Форд • 324». Не вводи госномер автомобиля или настоящее имя: они для сервиса не нужны.</p>
+<div class="alias-edit"><select id="alias-brand" aria-label="Название автомобиля"><option>Форд</option><option>Рено</option><option>Мазда</option><option>Лада</option><option>Киа</option><option>Тойота</option><option>Другой водитель</option></select><input id="alias-number" type="text" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" aria-label="Три цифры псевдонима"></div>
+<label class="toggle-line"><span><b>Показывать мой псевдоним публично</b><small>Пока это только локальная настройка</small></span><input id="public-alias" type="checkbox"></label><button class="outline-btn" id="save-alias" type="button">Сохранить псевдоним</button></div>
+<div class="rating-cards"><div><b>—</b><span>Рейтинг точности</span></div><div><b>0</b><span>Подтверждений другими</span></div><div><b>0</b><span>Проверенных сообщений</span></div></div>
+<div class="rating-info"><h3>Как будет формироваться репутация?</h3><p><b>Два независимых показателя:</b> точность сообщений и качество подтверждений. Учитывается история последних 60 проверенных действий, а не число нажатий.</p><p>Рейтинг станет доступен после накопления не менее 10 проверенных сообщений. Повторные сообщения, взаимные накрутки и подтверждения своего сообщения не засчитываются.</p><p>Это наша собственная модель репутации, не алгоритм Яндекс Такси.</p></div>
+<div class="profile-section"><h2>Мои тестовые сообщения <span id="draft-count">0</span></h2><p>Эти записи <b>не отправлены другим пользователям</b> и не влияют на общий рейтинг. Они остаются на данном устройстве.</p><div id="draft-list" class="draft-list"></div></div>
+<div class="profile-section"><h2>О проекте</h2><p>ТОПЛИВО56 — пилотный справочник бензиновых и дизельных АЗС Оренбурга. Адреса и районы требуют актуализации. Приложение не гарантирует наличие топлива, цену или часы работы.</p><p>© OpenStreetMap contributors. Для общей системы сообщений и уведомлений потребуется защищённый серверный компонент и соответствующее законодательству хранение данных.</p><a class="link-max" href="https://max.ru/se14329885_bot" target="_blank" rel="noopener">Открыть UniBot ↗</a></div>
+</section>
+</main>
+<button class="floating-report" type="button" id="fab-report"><span>＋</span> Сообщить об АЗС</button>
+<nav class="bottom-nav" aria-label="Основная навигация"><button type="button" data-tab="map" class="nav-button active"><span>▤</span><small>Карта</small></button><button type="button" data-tab="list" class="nav-button"><span>⌕</span><small>АЗС</small></button><button type="button" data-tab="subscriptions" class="nav-button"><span>♧</span><small>Подписки</small></button><button type="button" data-tab="profile" class="nav-button"><span>◉</span><small>Профиль</small></button></nav>
+</div>
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div><div class="bottom-sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><div class="sheet-heading"><h2 id="sheet-title">АЗС</h2><button type="button" id="sheet-close" aria-label="Закрыть">×</button></div><div id="sheet-content"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body></html>

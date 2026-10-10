@@ -1,265 +1,136 @@
+'use strict';
 (() => {
-  'use strict';
-  const { regions, events: demoEvents } = window.MINIAPP_DATA;
-  const BOT_URL = 'https://max.ru/se14329885_bot';
-  const STORE_KEY = 'unibot-max-demo-regions-v1';
-  const FEED_URL = (window.UNIBOT_CONFIG?.publicFeedUrl || '').trim();
-  const regionById = new Map(regions.map(r => [r.id, r]));
-  const regionByName = new Map(regions.map(r => [r.name, r]));
-  const $ = id => document.getElementById(id);
-  const state = { tab:'map', filter:'all', selected:loadSelection(), map:null, markers:[], events: FEED_URL ? [] : demoEvents, feedState: FEED_URL ? 'loading' : 'demo' };
-  let toastTimer, feedSequence = 0;
-  let mapResizeObserver;
-  const RUSSIA_BOUNDS = [[41,19],[78,190]];
-  function loadSelection() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
-      if (Array.isArray(parsed)) return new Set(parsed.filter(id => regionById.has(id)));
-    } catch (_) {}
-    return new Set();
-  }
-  function saveSelection() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify([...state.selected])); }
-    catch (_) { showToast('Сохранение выбора недоступно'); }
-  }
-  function showToast(message) {
-    const node=$('toast'); node.textContent=message; node.classList.add('show');
-    clearTimeout(toastTimer); toastTimer=setTimeout(()=>node.classList.remove('show'),2400);
-  }
-  function el(tag, className, text) {
-    const node=document.createElement(tag);
-    if (className) node.className=className;
-    if (text !== undefined) node.textContent=text;
-    return node;
-  }
-  function showTab(name) {
-    state.tab=name;
-    document.querySelectorAll('.tab-section').forEach(section=>section.classList.toggle('active',section.id===`view-${name}`));
-    document.querySelectorAll('.nav-item').forEach(btn=>{
-      const active=btn.dataset.tab===name;
-      btn.classList.toggle('active',active);
-      if(active) btn.setAttribute('aria-current','page'); else btn.removeAttribute('aria-current');
-    });
-    $('page-scroll').scrollTop=0;
-    if(name==='map') {
-      if(!state.map) initMap(); else scheduleMapRefresh();
-    }
-    if(name==='regions') renderRegions();
-    if(name==='profile') renderProfile();
-  }
-  function addLink(parent, url, text) {
-    if (!/^https:\/\//i.test(url||'')) return;
-    const link=el('a','source-link',text);
-    link.href=url; link.target='_blank'; link.rel='noopener noreferrer';
-    parent.append(link);
-  }
-  function createEventCard(data) {
-    const region=regionById.get(data.regionId);
-    const isCancel=data.kind==='cancel';
-    const root=el('article','event-card');
-    root.append(el('div','event-icon'+(isCancel?' cancel':''),isCancel?'✓':'!'));
-    const content=el('div','event-content');
-    const demo=state.feedState==='demo';
-    content.append(
-      el('span','event-label'+(isCancel?' cancel':''), demo?(isCancel?'ПРИМЕР ОТМЕНЫ':'УЧЕБНОЕ ПРЕДУПРЕЖДЕНИЕ'):(isCancel?'ОТМЕНА':'ПРЕДУПРЕЖДЕНИЕ')),
-      el('h3','',data.title),
-      el('p','event-region',region ? region.name:'Регион'),
-      el('p','event-desc',data.details || ''),
-      el('span','event-meta',data.stamp || '')
-    );
-    if(data.sourceUrl) addLink(content,data.sourceUrl,'Официальный источник ↗');
-    else if(demo) content.append(el('span','event-meta','Источник не подключён'));
-    root.append(content);
-    if(demo) root.append(el('span','demo-tag','ДЕМО'));
-    return root;
-  }
-  function renderEvents() {
-    const emptyMsg=state.feedState==='error'?'Не удалось получить данные. Проверьте официальные источники.':
-      state.feedState==='loading'?'Загружаем подтверждённые публикации…':'Опубликованных событий нет.';
-    const mapEvents=state.events.slice(0,2);
-    $('map-event-list').replaceChildren(...(mapEvents.length ? mapEvents.map(createEventCard) : [el('div','empty-result',emptyMsg)]));
-    const visible=state.events.filter(item=>state.filter==='all'||item.kind===state.filter);
-    $('all-event-list').replaceChildren(...(visible.length ? visible.map(createEventCard) : [el('div','empty-result',emptyMsg)]));
-  }
-  function toggleRegion(id) {
-    if(!regionById.has(id)) return;
-    if(state.selected.has(id)) {state.selected.delete(id);showToast('Удалено из выбранных регионов');}
-    else {state.selected.add(id);showToast('Регион сохранён на этом устройстве');}
-    saveSelection();renderRegions();renderProfile();
-  }
-  function renderRegions() {
-    const q=$('region-search').value.trim().toLocaleLowerCase('ru');
-    const match=regions.filter(r=>r.name.toLocaleLowerCase('ru').includes(q)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
-    $('region-count').textContent=`${state.selected.size} выбрано`;
-    $('region-list-count').textContent=`${match.length} регионов`;
-    $('region-list').replaceChildren(...(match.length?match.map(region=>{
-      const row=el('div','region-row');
-      row.append(el('span','region-bullet','⌾'),el('span','region-row-name',region.name));
-      const btn=el('button',state.selected.has(region.id)?'selected':'',state.selected.has(region.id)?'✓ Выбрано':'+ Выбрать');
-      btn.type='button';btn.addEventListener('click',()=>toggleRegion(region.id));
-      row.append(btn);return row;
-    }):[el('div','empty-result','По запросу ничего не найдено')]));
-    $('selected-chips').replaceChildren(...[...state.selected].sort((a,b)=>regionById.get(a).name.localeCompare(regionById.get(b).name,'ru')).map(id=>{
-      const btn=el('button','selected-chip',regionById.get(id).name);btn.type='button';btn.title='Удалить регион';
-      btn.append(el('span','','×'));btn.addEventListener('click',()=>toggleRegion(id));return btn;
-    }));
-  }
-  function renderProfile() { $('profile-regions').textContent=state.selected.size; }
-  function renderMaxUser() {
-    try {
-      // initDataUnsafe нельзя использовать для авторизации.
-      const user=window.WebApp?.initDataUnsafe?.user;
-      if(!user) return;
-      const name=[user.first_name,user.last_name].filter(x=>typeof x==='string').join(' ').trim();
-      if(name) { $('profile-name').textContent=name; $('profile-avatar').textContent=(user.first_name||name).trim().slice(0,1).toUpperCase(); }
-      $('profile-subtitle').textContent='Профиль MAX · имя не проверено';
-    } catch (_) {}
-  }
-  function markerHTML(kind) { return `<div class="region-marker ${kind||''}" style="width:13px;height:13px"></div>`; }
-  function latestRegionStatus(regionId) {
-    if(state.feedState==='error'||state.feedState==='loading') return {kind:'unknown',text:'Свежие сведения недоступны'};
-    const candidate=state.events.find(item=>item.regionId===regionId);
-    if(!candidate) return {kind:'unknown',text:'Нет опубликованных сведений (не означает безопасность)'};
-    if(state.feedState==='demo') return {kind:candidate.kind,text:candidate.kind==='alert'?'Учебный пример предупреждения':'Учебный пример отмены'};
-    const age=Date.now()-Date.parse(candidate.timestamp);
-    if(!Number.isFinite(age)||age < -600000 || age > 24*3600*1000) {
-      return {kind:'unknown',text:'Последняя публикация старше 24 часов. Сведения могут быть устаревшими'};
-    }
-    return {kind:candidate.kind,text:(candidate.kind==='alert'?'Опубликовано предупреждение':'Опубликована отмена')+' · '+candidate.stamp};
-  }
-  function drawMarkers() {
-    if(!state.map || typeof window.L==='undefined') return;
-    state.markers.forEach(marker=>state.map.removeLayer(marker)); state.markers=[];
-    regions.forEach(region=>{
-      const status=latestRegionStatus(region.id);
-      const marker=L.marker([region.lat,region.lng],{
-        icon:L.divIcon({html:markerHTML(status.kind==='unknown'?'':status.kind),className:'',iconSize:[13,13],iconAnchor:[7,7]}),
-        title:region.name,keyboard:true
-      });
-      const popup=el('div','');
-      popup.append(el('div','popup-title',region.name),el('div','popup-status',status.text));
-      const select=el('button','popup-btn',state.selected.has(region.id)?'✓ Убрать из выбранных':'+ Выбрать регион');
-      select.type='button';select.addEventListener('click',()=>{
-        toggleRegion(region.id);
-        select.textContent=state.selected.has(region.id)?'✓ Убрать из выбранных':'+ Выбрать регион';
-      });
-      popup.append(select);marker.bindPopup(popup,{closeButton:true,maxWidth:260}).addTo(state.map);state.markers.push(marker);
-    });
-  }
-  function refreshMapSize() {
-    if (!state.map || state.tab !== 'map') return;
-    const box = $('map').getBoundingClientRect();
-    if (box.width < 100 || box.height < 100) return;
-    state.map.invalidateSize({pan:false, animate:false});
-  }
-  function scheduleMapRefresh() {
-    [0,150,450,900,1600].forEach(delay => setTimeout(refreshMapSize, delay));
-  }
-  function showRussiaOverview() {
-    if (!state.map) return;
-    refreshMapSize();
-    state.map.fitBounds(RUSSIA_BOUNDS, {padding:[15,15], maxZoom:3, animate:false});
-    scheduleMapRefresh();
-  }
-  function initMap() {
-    if(typeof window.L==='undefined') { $('map-fallback').hidden=false;return; }
-    try {
-      const map=L.map('map',{
-        zoomControl:true,scrollWheelZoom:false,preferCanvas:true,
-        worldCopyJump:false,minZoom:1,zoomSnap:0.25,zoomDelta:0.5
-      });
-      state.map=map;
-      map.setView([60,98],2);
-      const tileLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        maxZoom:18,
-        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
-      });
-      tileLayer.addTo(map);
-      drawMarkers();
-      showRussiaOverview();
-      if (typeof ResizeObserver !== 'undefined') {
-        mapResizeObserver = new ResizeObserver(() => refreshMapSize());
-        mapResizeObserver.observe($('map'));
-      }
-      window.addEventListener('resize', scheduleMapRefresh, {passive:true});
-      window.addEventListener('orientationchange', scheduleMapRefresh, {passive:true});
-      window.addEventListener('pageshow', scheduleMapRefresh);
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) scheduleMapRefresh();
-      });
-      scheduleMapRefresh();
-    } catch (error) { console.error('Map init failed', error); $('map-fallback').hidden=false; }
-  }
-  function setFeedStatus(name) {
-    state.feedState=name;
-    const data={
-      demo:['ДЕМО-ВЕРСИЯ','Учебные события. База данных пока не подключена.','● ПРОТОТИП','Пример отображения статусов','Учебные отметки','Примеры сообщений','Ниже — учебные примеры.'],
-      loading:['ЗАГРУЗКА','Получаем опубликованные сообщения из базы.','● ОБНОВЛЕНИЕ','Ожидание информации','Загрузка…','Последние сообщения','Загружаем данные.'],
-      live:['ПРОВЕРЕННЫЕ ПУБЛИКАЦИИ','События вручную подтверждены администратором. Это не официальный сервис экстренного оповещения.','● БАЗА ПОДКЛЮЧЕНА','Региональные публикации · обновление каждые 5 минут','Регионы, не координаты событий','Последние сообщения','Информация публикуется вручную, возможны задержки. Всегда проверяйте первоисточник.'],
-      error:['НЕТ СВЯЗИ С БАЗОЙ','Не удалось загрузить публикации. Это не означает отсутствие предупреждений.','● НЕТ ДАННЫХ','Информация недоступна','Нет связи','Последние сообщения','База временно недоступна. Используйте официальные каналы оповещения.']
-    }[name];
-    $('feed-banner-title').textContent=data[0];
-    $('feed-banner-description').textContent=data[1];
-    $('feed-status').textContent=data[2];
-    $('map-summary').textContent=data[3];
-    $('map-corner').textContent=data[4];
-    $('map-feed-heading').textContent=data[5];
-    $('feed-caption').textContent=data[6];
-  }
-  function redrawFeed() { renderEvents(); if(state.map) drawMarkers(); }
-  function loadEvents() {
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(FEED_URL)) {
-      state.events=[];setFeedStatus('error');redrawFeed();return;
-    }
-    const seq=++feedSequence;
-    const cb='unibotFeed_'+seq+'_'+Date.now();
-    const script=document.createElement('script');
-    const timeout=setTimeout(()=>cleanup(false),18000);
-    function cleanup(success) {
-      clearTimeout(timeout);script.remove();delete window[cb];
-      if(!success && seq===feedSequence) {state.events=[];setFeedStatus('error');redrawFeed();}
-    }
-    window[cb]=(payload)=>{
-      if(seq!==feedSequence) {cleanup(true);return;}
-      if(!payload || payload.ok!==true || !Array.isArray(payload.events)) {cleanup(false);return;}
-      const clean=payload.events.slice(0,100).map(item=>{
-        const region=regionByName.get(item.region);
-        if(!region||!['alert','cancel'].includes(item.kind)) return null;
-        return {id:String(item.id||''),regionId:region.id,kind:item.kind,
-          title:String(item.title||'').slice(0,200),details:String(item.details||'').slice(0,1000),
-          stamp:String(item.stamp||''),timestamp:String(item.timestamp||''),sourceUrl:String(item.sourceUrl||'')};
-      }).filter(Boolean);
-      state.events=clean;setFeedStatus('live');redrawFeed();cleanup(true);
-    };
-    script.onerror=()=>cleanup(false);
-    script.src=FEED_URL+(FEED_URL.includes('?')?'&':'?')+'callback='+encodeURIComponent(cb)+'&nocache='+Date.now();
-    document.head.append(script);
-  }
-  function initLinks() {
-    ['header-bot-link','profile-bot-link'].forEach(id=>{
-      $(id).addEventListener('click',evt=>{
-        if(window.WebApp && typeof window.WebApp.openMaxLink==='function') {
-          evt.preventDefault();try{window.WebApp.openMaxLink(BOT_URL);} catch (_){window.location.href=BOT_URL;}
-        }
-      });
-    });
-  }
-  function init() {
-    document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.tab)));
-    document.querySelectorAll('[data-event-filter]').forEach(btn=>btn.addEventListener('click',()=>{
-      state.filter=btn.dataset.eventFilter;
-      document.querySelectorAll('[data-event-filter]').forEach(other=>other.classList.toggle('active',other===btn));
-      renderEvents();
-    }));
-    $('show-all-events').addEventListener('click',()=>showTab('events'));
-    $('region-search').addEventListener('input',renderRegions);
-    $('reset-map').addEventListener('click',()=>state.map?showRussiaOverview():showToast('Карта пока недоступна'));
-    setFeedStatus(FEED_URL?'loading':'demo');
-    renderEvents();renderRegions();renderMaxUser();renderProfile();initLinks();showTab('map');
-    if(FEED_URL) {
-      loadEvents();setInterval(loadEvents,300000);
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadEvents();});
-    }
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);else init();
+const raw = Array.isArray(window.TOPLIVO56_STATIONS) ? window.TOPLIVO56_STATIONS : [];
+const majorBrands = ['Лукойл','Башнефть','Газпром','Газпромнефть','Татнефть'];
+const districts = ['Дзержинский','Промышленный','Центральный','Ленинский'];
+const fuels = ['АИ-92','АИ-95','АИ-98','АИ-100','ДТ'];
+const brandKeys = [...majorBrands,'Местные / небольшие'];
+const EVENTS = {availability:'Наличие и отсутствие топлива',closure:'Временное закрытие / открытие АЗС',price:'Изменение цены',queue:'Очереди'};
+const scopes = {favorites:'Избранные АЗС',districts:'Выбранные районы',brands:'Выбранные сети',city:'Весь Оренбург'};
+const FREQ = {balanced:'Умный режим',digest:'Сводка раз в 2 часа',minimal:'Только важное'};
+const canon = name => name.startsWith('Газпром АЗС') ? 'Газпром' : name;
+const stations = raw.filter(s=>!/(?:^|\s)(?:АГЗС|АГНКС)(?:\s|$)/i.test(s.name)).map(s=>({...s,brand:canon(s.name),local:!majorBrands.includes(canon(s.name))}));
+const byId = new Map(stations.map(s=>[s.id,s]));
+const KEY='toplivo56_demo_v2';
+const defaults = {favorites:[],drafts:[],prefs:{scopes:['favorites'],districts:[],brands:[],events:['availability','closure','price'],fuel:'АИ-95',frequency:'balanced',quiet:true,weekly:true},alias:{car:'Форд',number:'324',public:false}};
+const clone = x => JSON.parse(JSON.stringify(x));
+let state = clone(defaults);
+try { const prev = JSON.parse(localStorage.getItem(KEY)||'null'); if(prev&&typeof prev==='object') {
+  state.favorites = Array.isArray(prev.favorites)?prev.favorites.filter(id=>byId.has(id)):[];
+  state.drafts = Array.isArray(prev.drafts)?prev.drafts.filter(x=>byId.has(x.stationId)).slice(-150):[];
+  state.prefs = {...defaults.prefs,...prev.prefs};if(!Array.isArray(state.prefs.scopes))state.prefs.scopes=[state.prefs.scope||'favorites'];state.alias={...defaults.alias,...prev.alias};
+}} catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch(e){toast('Не удалось сохранить: хранилище браузера недоступно');return false}}
+const $ = id=>document.getElementById(id);
+const esc = str => String(str===null||str===undefined?'':str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const el=(tag,cls,html)=>{let x=document.createElement(tag);if(cls)x.className=cls;if(html!==undefined)x.innerHTML=html;return x};
+let map = null,markers=[], selectedDistrict='Все',selectedBrand='Все',search='',currentTab='map',hideTimeout;
+let activeStation=null, reportFuel=state.prefs.fuel;
+let feed=[], isFeedLoading=false, feedTimer=null; const markerByStation=new Map();
+const formatStamp=iso=>{let d=new Date(iso);return Number.isNaN(+d)?'':d.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})};
+function toast(msg){const x=$('toast');x.textContent=msg;x.classList.add('show');clearTimeout(hideTimeout);hideTimeout=setTimeout(()=>x.classList.remove('show'),3500)}
+function localBadge(s){return s.local?'<span class="local-badge" title="Предварительная категория: сеть не входит в список выбранных федеральных брендов">◆ Местная / небольшая сеть</span>':''}
+function switchTab(tab){currentTab=tab;document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id==='tab-'+tab));document.querySelectorAll('.nav-button').forEach(x=>{let is=x.dataset.tab===tab;x.classList.toggle('active',is);x.setAttribute('aria-current',is?'page':'false')});$('scroll-area').scrollTo({top:0});if(tab==='map') {setTimeout(()=>{ensureMap();map&&map.invalidateSize(true)},80)}if(tab==='list')renderList();if(tab==='subscriptions')renderSubscriptions();if(tab==='profile')renderProfile()}
+function filtered(){return stations.filter(s=>(selectedDistrict==='Все'||s.district===selectedDistrict)&&(selectedBrand==='Все'||(selectedBrand==='Местные / небольшие'?s.local:s.brand===selectedBrand))&&(`${s.name} ${s.address} ${s.district}`.toLowerCase().includes(search.toLowerCase())))}
+function makeChip(container,text,active,onClick){const b=el('button','chip'+(active?' active':''),esc(text));b.type='button';b.addEventListener('click',onClick);container.appendChild(b)}
+function setupFilters(){const d=$('district-filters');d.innerHTML='';['Все',...districts].forEach(n=>makeChip(d,n,selectedDistrict===n,()=>{selectedDistrict=n;setupFilters();renderList()}));const b=$('brand-filters');b.innerHTML='';['Все',...brandKeys].forEach(n=>makeChip(b,n,selectedBrand===n,()=>{selectedBrand=n;setupFilters();renderList()}));$('fuel-filters').innerHTML='';fuels.forEach(n=>makeChip($('fuel-filters'),n,state.prefs.fuel===n,()=>{state.prefs.fuel=n;reportFuel=n;save();setupFilters();renderList();updateMapMarkers();toast('Топливо для быстрых сообщений: '+n)}))}
+
+function eventsForStation(id){return feed.filter(x=>x.stationId===id)}
+function latestEvent(id,type,fuel=''){
+ return feed.find(x=>x.stationId===id && x.type===type && (fuel ? x.fuel===fuel : true)) || null;
+}
+function ageText(ts){const m=Math.max(0,Math.floor((Date.now()-Date.parse(ts))/60000));return m<1?'только что':m<60?m+' мин. назад':Math.floor(m/60)+' ч. назад'}
+function fuelChip(s,f){const r=latestEvent(s.id,'availability',f);if(!r)return `<span>${esc(f)} · ?</span>`;const yes=r.value==='есть';return `<span class="${yes?'known-yes':'known-no'} ${r.test?'known-test':''}" title="${esc(ageText(r.ts))}">${esc(f)} · ${yes?'есть':'нет'}${r.test?' · ТЕСТ':''}</span>`}
+function stationMeta(s){const closed=latestEvent(s.id,'closure');if(closed){const open=closed.value==='открыта снова';return `${open?'🟢':'🟠'} По опубликованной записи: ${esc(closed.value)}${closed.test?' (ТЕСТ)':''} · ${ageText(closed.ts)}`}; const some=eventsForStation(s.id);return some.length?`● Есть записи из базы · ${ageText(some[0].ts)}`:'● Актуальных сведений нет'}
+function liveLine(x){const labels={availability:`${x.fuel}: ${x.value}`,price:`${x.fuel}: ${x.value} ₽/л`,closure:`Работа АЗС: ${x.value}`,queue:`Очередь: ${x.value}`};return `<div class="live-line ${x.test?'demo':'normal'}"><strong>${esc(labels[x.type]||x.value)}${x.test?' · ТЕСТ':''}</strong><small>Запись из базы · ${esc(ageText(x.ts))}. Не гарантирует текущую ситуацию.</small></div>`}
+function renderFeedUI(){renderList();renderFavorites();updateMapMarkers();if(activeStation&&$('sheet')&&!$('sheet').hidden&&$('sheet').dataset.view==='detail')showDetail(activeStation)}
+function setFeedStatus(message){const el=$('api-connection');if(el)el.textContent=message}
+function loadPublicFeed(){
+ const url=String(window.TOPLIVO56_CONFIG?.API_URL||'').trim();
+ if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
+   setFeedStatus('○ База ещё не подключена. Справочник и локальные черновики доступны.');return;
+ }
+ if(isFeedLoading)return;
+ isFeedLoading=true;setFeedStatus('◌ Загружаем опубликованные сведения…');
+ const name='toplivo56_cb_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ const scr=document.createElement('script');let done=false;
+ const stop=(msg)=>{if(done)return;done=true;clearTimeout(timeout);delete window[name];scr.remove();isFeedLoading=false;if(msg)setFeedStatus(msg)};
+ const timeout=setTimeout(()=>stop('⚠ Нет ответа от базы. Сведения могут быть устаревшими.'),25000);
+ window[name]=data=>{
+   if(!data||data.ok!==true||!Array.isArray(data.items)){
+     stop('⚠ База ответила с ошибкой. Повторим попытку позже.');return;
+   }
+   feed=data.items.filter(x=>x&&byId.has(x.stationId)&&['availability','price','queue','closure'].includes(x.type)
+       &&typeof x.ts==='string'&&Number.isFinite(Date.parse(x.ts)))
+       .sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,300);
+   renderFeedUI();
+   const testCount=feed.filter(x=>x.test).length;
+   stop('● БАЗА ПОДКЛЮЧЕНА · актуальных записей: '+feed.length+(testCount?' · ТЕСТ: '+testCount:''));
+ };
+ scr.onerror=()=>stop('⚠ Не удалось загрузить данные. Проверь адрес и настройки доступа.');
+ scr.src=url+'?action=feed&callback='+encodeURIComponent(name)+'&ts='+Date.now();
+ document.head.appendChild(scr);
+}
+function markerColor(s){const cl=latestEvent(s.id,'closure');if(cl&&cl.value!=='открыта снова')return '#e1a35f'; const a=latestEvent(s.id,'availability',state.prefs.fuel);return a?(a.value==='есть'?'#5bd29f':'#ee8279'):'#8e9fa3'}
+function updateMapMarkers(){for(const [id,m] of markerByStation){const s=byId.get(id);if(!s)continue;const color=markerColor(s);m.setStyle({color,fillColor:color});}}
+function stationCard(s){const fav=state.favorites.includes(s.id);let wrap=el('div','station-card',`<div class="station-main"><span class="station-icon">⛽</span><div class="station-title"><b>${esc(s.name)}</b><small>${esc(s.address)} · ${esc(s.district)} район</small></div><button class="favorite-btn ${fav?'is-fav':''}" data-fav="${s.id}" type="button" aria-label="${fav?'Удалить из избранного':'Добавить в избранное'}">${fav?'★':'☆'}</button></div>${localBadge(s)}<div class="station-meta"><span>${stationMeta(s)}</span>${Number.isFinite(s.lat)&&Number.isFinite(s.lon)?'<span>◉ На карте</span>':'<span>Адрес в справочнике</span>'}</div><div class="status-strip">${["АИ-92","АИ-95","ДТ"].map(f=>fuelChip(s,f)).join("")}</div><div class="card-actions"><button class="report" data-report="${s.id}" type="button">＋ Сообщить</button><button class="detail" data-detail="${s.id}" type="button">Карточка АЗС</button></div>`);return wrap}
+function renderList(){const arr=filtered();$('list-count').textContent=arr.length;$('results-note').textContent=`Найдено ${arr.length} записей. Фильтр топлива задаёт марку для быстрого сообщения, а не подтверждает её наличие.`;const out=$('list-stations');out.innerHTML='';if(!arr.length){out.innerHTML='<div class="empty">Ничего не найдено. Попробуй выбрать другой район или сеть.</div>';return}
+ districts.forEach((district,i)=>{const ss=arr.filter(s=>s.district===district);if(!ss.length)return;const box=el('details','district-group');box.open=(selectedDistrict!=='Все'||search.length>0||selectedBrand!=='Все'||i===0);box.innerHTML=`<summary><span>📍 ${district} район</span><b>${ss.length} АЗС <span aria-hidden="true">⌄</span></b></summary>`;const list=el('div','station-list');ss.forEach(s=>list.appendChild(stationCard(s)));box.appendChild(list);out.appendChild(box)})}
+function toggleFav(id){if(!byId.has(id))return;let i=state.favorites.indexOf(id);if(i<0)state.favorites.push(id);else state.favorites.splice(i,1);save();renderList();renderFavorites();renderSubscriptions();if(activeStation===id)showDetail(id);toast(i<0?'АЗС добавлена в избранное':'АЗС удалена из избранного')}
+function renderFavorites(){const f=state.favorites.map(id=>byId.get(id)).filter(Boolean);$('map-favorites').innerHTML='';if(f.length){f.slice(0,5).forEach(s=>$('map-favorites').appendChild(stationCard(s)))}else {$('map-favorites').innerHTML='<div class="empty">Пока нет избранных АЗС. Открой раздел «АЗС» и нажми ☆ возле нужного адреса.</div>'} $('summary-drafts').textContent=state.drafts.length}
+function ensureMap(){if(map)return; if(!window.L){$('map-error').hidden=false;return;} try{map=L.map('map',{zoomControl:true,attributionControl:true,scrollWheelZoom:false}).setView([51.772,55.12],10);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).on('tileerror',()=>{}).addTo(map);const coords=[];stations.forEach(s=>{if(!Number.isFinite(s.lat)||!Number.isFinite(s.lon))return;coords.push([s.lat,s.lon]);const m=L.circleMarker([s.lat,s.lon],{radius:7,color:s.local?'#fdb870':'#d8f15b',fillColor:s.local?'#fdb870':'#d8f15b',fillOpacity:.95,weight:2}).on('click',()=>showDetail(s.id)).addTo(map);markers.push(m);markerByStation.set(s.id,m)});updateMapMarkers();$('summary-onmap').textContent=coords.length;if(coords.length)map.fitBounds(coords,{padding:[18,18],maxZoom:11});setTimeout(()=>map.invalidateSize(true),300)}catch(e){$('map-error').hidden=false}}
+function sheetOpen(title,html){$('sheet').dataset.view='';$('sheet-title').textContent=title;$('sheet-content').innerHTML=html;$('sheet-backdrop').hidden=false;$('sheet').hidden=false;document.body.classList.add('modal-open')}
+function closeSheet(){$('sheet').hidden=true;$('sheet-backdrop').hidden=true;document.body.classList.remove('modal-open');activeStation=null}
+function showDetail(id){
+ const s=byId.get(id);if(!s)return;activeStation=id;
+ const fav=state.favorites.includes(id);const records=eventsForStation(id).slice(0,12);
+ const myDraft=state.drafts.filter(x=>x.stationId===id).slice(-3).reverse();
+ const source=s.source?`<a class="external-source" href="${esc(s.source)}" rel="noopener noreferrer" target="_blank">Адрес в источнике ↗</a>`:'';
+ const details=records.length?records.map(liveLine).join(''):'<div class="sheet-alert">Нет свежих опубликованных сведений. Цены, наличие и время работы неизвестны.</div>';
+ const html=`<p class="sheet-sub">${esc(s.address)} · ${esc(s.district)} район</p>${localBadge(s)}<div class="detail-meta"><b>Статус АЗС</b><span>${stationMeta(s)}</span></div><div class="detail-meta"><b>Последние опубликованные сведения</b></div>${details}<div class="detail-actions"><button class="main-btn" data-report="${id}" type="button">＋ Сообщить об изменении</button><button class="outline-btn" data-fav="${id}" type="button">${fav?'★ Убрать из избранного':'☆ В избранное'}</button></div>${source}<div class="local-drafts"><h3>Мои локальные черновики</h3>${myDraft.length?myDraft.map(x=>`<div class="draft-item"><b>${esc(reportText(x))}</b><span>${formatStamp(x.ts)} · не опубликовано</span></div>`).join(''):'<p>Пока нет черновиков.</p>'}</div>`;
+ sheetOpen(s.name,html);$('sheet').dataset.view='detail';
+}
+function chooser(){activeStation=null;const fav=state.favorites.map(id=>byId.get(id)).filter(Boolean);const ordered=[...fav,...stations.filter(s=>!state.favorites.includes(s.id))];sheetOpen('Выбери АЗС',`<p class="sheet-sub">Начни с избранных или найди заправку по адресу.</p><input id="chooser-search" class="sheet-search" placeholder="Название или улица…" type="search"><div class="station-chooser" id="chooser-stations"></div>`);renderChooser(ordered);$('chooser-search').addEventListener('input',e=>{const v=e.target.value.toLowerCase();renderChooser(ordered.filter(s=>`${s.name} ${s.address} ${s.district}`.toLowerCase().includes(v)))})}
+function renderChooser(rows){const list=$('chooser-stations');if(!list)return;list.innerHTML='';rows.slice(0,75).forEach(s=>{const b=el('button','',`<span>⛽</span><span><b>${esc(s.name)}</b><small>${esc(s.address)} · ${esc(s.district)} район ${state.favorites.includes(s.id)?'★':''}</small></span>`);b.addEventListener('click',()=>chooseType(s.id));list.appendChild(b)});if(!rows.length)list.textContent='Не найдено'}
+function chooseType(id){const s=byId.get(id);if(!s)return;activeStation=id;sheetOpen('Сообщить: '+s.name,`<p class="sheet-sub">${esc(s.address)}</p><p class="sheet-caption">Что хочешь сообщить?</p><div class="report-types"><button data-type="availability">⛽ Наличие топлива</button><button data-type="price">₽ Цена топлива</button><button data-type="queue">🚗 Очередь</button><button data-type="closure">🔒 АЗС закрыта / открылась</button></div><p class="helper">Это тестовый режим: сообщения сохраняются только на твоём устройстве.</p>`)}
+function fuelSelector(){return `<div class="fuel-filters report-fuels">${fuels.map(f=>`<button type="button" class="chip ${reportFuel===f?'active':''}" data-fuel="${esc(f)}">${esc(f)}</button>`).join('')}</div>`}
+function chooseReportType(type){if(!byId.has(activeStation))return;const s=byId.get(activeStation);let html=`<p class="sheet-sub">${esc(s.name)} · ${esc(s.address)}</p>`;
+ if(type==='availability')html+=`<p class="sheet-caption">Марка топлива</p>${fuelSelector()}<p class="sheet-caption">Есть ли ${esc(reportFuel)} на АЗС?</p><div class="outcome-options"><button data-save-type="availability" data-value="есть">✅ Есть</button><button data-save-type="availability" data-value="нет">❌ Нет</button></div>`;
+ if(type==='closure')html+=`<p class="sheet-caption">Работает ли АЗС?</p><div class="outcome-options"><button data-save-type="closure" data-value="закрыта временно">🔴 Временно закрыта</button><button data-save-type="closure" data-value="открыта снова">🟢 Открыта снова</button><button data-save-type="closure" data-value="технический перерыв">🛠 Техперерыв</button><button data-save-type="closure" data-value="причина неизвестна">❔ Закрыта — причина неизвестна</button></div><p class="helper">Причину не нужно придумывать. Если неизвестна — выбирай соответствующий вариант.</p>`;
+ if(type==='queue')html+=`<p class="sheet-caption">Примерное время ожидания</p><div class="outcome-options"><button data-save-type="queue" data-value="нет очереди">🟢 Нет очереди</button><button data-save-type="queue" data-value="до 5 минут">До 5 минут</button><button data-save-type="queue" data-value="5–15 минут">5–15 минут</button><button data-save-type="queue" data-value="более 15 минут">Более 15 минут</button></div>`;
+ if(type==='price')html+=`<p class="sheet-caption">Какое топливо?</p>${fuelSelector()}<p class="sheet-caption">Цена, ₽ за литр</p><div class="price-row"><input id="price-value" type="number" min="1" max="400" step="0.01" placeholder="Например, 65.40"><button id="save-price" type="button">Сохранить</button></div><p class="helper">Вводи только цену, которую лично видел на АЗС.</p>`;
+ sheetOpen(({availability:'Наличие топлива',closure:'Работа АЗС',queue:'Очередь',price:'Цена топлива'})[type],html);
+ $('sheet').dataset.reportType=type;
+}
+function saveReport(type,value){if(!activeStation || !byId.has(activeStation))return;let stationId=activeStation;const item={id:`r-${Date.now()}-${Math.floor(Math.random()*10000)}`,stationId,type,value,fuel:type==='availability'||type==='price'?reportFuel:'',ts:new Date().toISOString()};state.drafts.push(item);state.drafts=state.drafts.slice(-150);save();closeSheet();renderFavorites();renderProfile();toast('Тестовая отметка сохранена только на устройстве. В MAX не отправлена.')}
+function reportText(x){return ({availability:`${x.fuel}: ${x.value}`,closure:`Работа АЗС: ${x.value}`,queue:`Очередь: ${x.value}`,price:`${x.fuel}: ${x.value} ₽/л`})[x.type]||x.value}
+function renderSubscriptions(){const p=state.prefs;const scope=$('scope-choices');scope.innerHTML='';Object.entries(scopes).forEach(([key,label])=>{const b=el('button','option'+(p.scopes.includes(key)?' active':''),esc(label));b.setAttribute('aria-pressed',p.scopes.includes(key)?'true':'false');b.addEventListener('click',()=>{if(p.scopes.includes(key))p.scopes=p.scopes.filter(x=>x!==key);else p.scopes.push(key);save();renderSubscriptions()});scope.appendChild(b)});
+$('scope-helper').textContent='Можно выбрать несколько вариантов одновременно. Уведомления об одном событии не будут дублироваться. Для подписки на весь город включается группировка сообщений.';
+ $('subscribe-district-section').hidden=!p.scopes.includes('districts');$('subscribe-brand-section').hidden=!p.scopes.includes('brands');$('subscribe-favs-section').hidden=!p.scopes.includes('favorites');
+ function fillCheck(id,vals,field){const x=$(id);x.innerHTML='';vals.forEach(v=>{const label=el('label','check-row',`<input type="checkbox" ${p[field].includes(v)?'checked':''}><span>${esc(v)}</span>`);label.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p[field].includes(v))p[field].push(v);if(!e.target.checked)p[field]=p[field].filter(k=>k!==v);save()});x.appendChild(label)})}
+ fillCheck('sub-districts',districts,'districts');fillCheck('sub-brands',brandKeys,'brands');
+ $('sub-favorites').innerHTML=state.favorites.length?state.favorites.map(id=>byId.get(id)).filter(Boolean).map(s=>`<div class="sub-fav">★ ${esc(s.name)} — ${esc(s.address)}</div>`).join(''):'<div class="empty">Пока ничего не добавлено в избранное.</div>';
+ const ev=$('sub-events');ev.innerHTML='';Object.entries(EVENTS).forEach(([key,label])=>{const lab=el('label','check-row',`<input type="checkbox" ${p.events.includes(key)?'checked':''}><span>${esc(label)}</span>`);lab.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p.events.includes(key))p.events.push(key);if(!e.target.checked)p.events=p.events.filter(k=>k!==key);save()});ev.appendChild(lab)});
+ $('my-fuel-choices').innerHTML='';fuels.forEach(f=>makeChip($('my-fuel-choices'),f,p.fuel===f,()=>{p.fuel=f;reportFuel=f;save();renderSubscriptions();setupFilters()}));
+ const freq=$('frequency-choices');freq.innerHTML='';Object.entries(FREQ).forEach(([key,label])=>{const b=el('button','option'+(key===p.frequency?' active':''),esc(label));b.addEventListener('click',()=>{p.frequency=key;save();renderSubscriptions()});freq.appendChild(b)});
+ $('quiet-hours').checked=Boolean(p.quiet);$('weekly-digest').checked=Boolean(p.weekly);
+}
+function renderProfile(){const a=state.alias;const alias=`${a.car} • ${a.number}`;$('profile-name').textContent=alias;$('avatar').textContent=String(a.car).slice(0,1);$('alias-brand').value=a.car;$('alias-number').value=a.number;$('public-alias').checked=Boolean(a.public);$('draft-count').textContent=state.drafts.length;const node=$('draft-list');node.innerHTML='';const recent=state.drafts.slice(-20).reverse();if(!recent.length){node.innerHTML='<p>Пока нет отметок. Нажми «Сообщить об АЗС», чтобы проверить процесс.</p>'}recent.forEach(x=>{let s=byId.get(x.stationId);node.appendChild(el('div','draft-item',`<b>${esc(s?.name||'АЗС')}, ${esc(s?.address||'')}</b><span>${esc(reportText(x))} · ${formatStamp(x.ts)}</span><span>Только на этом устройстве, не опубликовано</span>`))})}
+function showExample(){sheetOpen('Как будет выглядеть подтверждение',`<div class="example-tag">ВЫМЫШЛЕННЫЙ ПРИМЕР</div><p><b>Лукойл — Шарлыкское шоссе, 11</b><br>АИ-95 временно отсутствует.</p><div class="user-line"><span>Форд • 324</span><small>Первое сообщение</small></div><div class="user-line"><span>Рено • 123</span><small>Независимое подтверждение</small></div><div class="user-line"><span>Мазда • 376</span><small>Независимое подтверждение</small></div><button type="button" id="show-more-confirmers" class="outline-btn">Показать остальных (пример) ▾</button><div id="more-confirmers" hidden><div class="user-line"><span>Лада • 812</span><small>Подтвердил</small></div><div class="user-line"><span>Киа • 410</span><small>Подтвердил</small></div></div><p class="helper">Список появится только после внедрения общей базы сообщений и проверки подтверждений. Псевдонимы публикуются с согласия водителей.</p>`)}
+// Delegate dynamic card and sheet actions.
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-fav')){toggleFav(b.dataset.fav);return}if(b.hasAttribute('data-detail')){showDetail(b.dataset.detail);return}if(b.hasAttribute('data-report')){chooseType(b.dataset.report);return}if(b.hasAttribute('data-type')){chooseReportType(b.dataset.type);return}if(b.hasAttribute('data-fuel')){reportFuel=b.dataset.fuel;chooseReportType($('sheet').dataset.reportType||'availability');return}if(b.hasAttribute('data-save-type')){saveReport(b.dataset.saveType,b.dataset.value);return}});
+document.querySelectorAll('.nav-button').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+$('search').addEventListener('input',e=>{search=e.target.value;renderList()});$('sheet-close').addEventListener('click',closeSheet);$('sheet-backdrop').addEventListener('click',closeSheet);
+$('fab-report').addEventListener('click',chooser);$('open-list-from-map').addEventListener('click',()=>switchTab('list'));
+$('reset-map').addEventListener('click',()=>{ensureMap();if(map){const coords=stations.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lon));if(coords.length)map.fitBounds(coords.map(s=>[s.lat,s.lon]),{padding:[20,20],maxZoom:11})}});
+$('show-example').addEventListener('click',showExample);
+$('reload-feed').addEventListener('click',loadPublicFeed);
+$('sheet-content').addEventListener('click',e=>{if(e.target.id==='show-more-confirmers'){$('more-confirmers').hidden=!$('more-confirmers').hidden;e.target.textContent=$('more-confirmers').hidden?'Показать остальных (пример) ▾':'Скрыть участников ▴'}if(e.target.id==='save-price'){const v=parseFloat($('price-value').value);if(!Number.isFinite(v)||v<1||v>400){toast('Укажи корректную цену за литр');return}saveReport('price',v.toFixed(2).replace('.',','))}});
+$('browse-for-favs').addEventListener('click',()=>switchTab('list'));
+$('quiet-hours').addEventListener('change',e=>{state.prefs.quiet=e.target.checked;save()});$('weekly-digest').addEventListener('change',e=>{state.prefs.weekly=e.target.checked;save()});
+$('save-subs').addEventListener('click',()=>{if(save())toast('Настройки сохранены локально. Уведомления MAX ещё не включены.')});
+$('save-alias').addEventListener('click',()=>{let number=$('alias-number').value.trim();if(!/^\d{3}$/.test(number)){toast('Используй три произвольные цифры (не номер автомобиля)');return}state.alias={car:$('alias-brand').value,number,public:$('public-alias').checked};if(save()){renderProfile();toast('Псевдоним сохранён на устройстве')}});
+window.addEventListener('resize',()=>map&&setTimeout(()=>map.invalidateSize(true),150));document.addEventListener('visibilitychange',()=>{if(!document.hidden&&map&&currentTab==='map')setTimeout(()=>map.invalidateSize(true),100)});
+$('summary-total').textContent=stations.length;$('summary-onmap').textContent=stations.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lon)).length;
+setupFilters();renderList();renderFavorites();renderSubscriptions();renderProfile();setTimeout(ensureMap,100);loadPublicFeed();feedTimer=setInterval(()=>{if(!document.hidden)loadPublicFeed()},5*60*1000);
 })();

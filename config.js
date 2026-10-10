@@ -1,6 +1,5 @@
-/** Публичная лента опубликованных событий из Google Apps Script.
- * URL здесь не является секретом. НЕ добавляйте токен MAX или личные данные.
- */
-window.UNIBOT_CONFIG = {
-  publicFeedUrl: 'https://script.google.com/macros/s/AKfycbzixIkJY-OCA2xVTnYHrlNnV4yKPXIAujdQN4wDA7THoRXxamT19NY08CVzbMOulAmeEA/exec'
+// Публичный API чтения опубликованных сведений ТОПЛИВО56.
+// Не добавляйте сюда токен MAX или другие секретные данные.
+window.TOPLIVO56_CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbzz4eL9zyRNNoap40UOYDeamzpT330lMjWHJdYo0tUx1nmVQln_Gxf8RKcowv9HAyr0/exec'
 };
