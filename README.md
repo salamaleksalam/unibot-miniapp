@@ -1,6 +1,6 @@
-# СИГНАЛ РЯДОМ · MAX Mini App · версия 2
+# СИ · MAX Mini App · версия 2
 
-Бот: https://max.ru/se14329885_bot
+Бот: https://max.ru/se1329885_bot
 Приложение: https://salamaleksalam.github.io/unibot-miniapp/
 
 ## Что появилось в версии 2
