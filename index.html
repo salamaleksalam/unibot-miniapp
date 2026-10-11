@@ -1,25 +1,26 @@
 <!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101920"><meta name="description" content="РАДАР БАК — топливо на радаре, Оренбург на связи">
-<title>РАДАР БАК • Оренбург</title>
+<meta name="theme-color" content="#101920"><meta name="description" content="ТОПЛИВО56 — адресный каталог АЗС Оренбурга по районам и сетям">
+<title>ТОПЛИВО56 • Оренбург</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=6.0.0">
+<link rel="stylesheet" href="style.css?v=5.0.5">
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://st.max.ru/js/max-web-app.js"></script>
-<script defer src="stations.js?v=5.0.4"></script><script defer src="config.js?v=6.0.0"></script><script defer src="app.js?v=6.0.0"></script>
+<script defer src="stations.js?v=5.0.5"></script><script defer src="config.js?v=5.0.5"></script><script defer src="app.js?v=5.0.5"></script>
 </head><body><div class="app-shell">
-<header class="topbar"><div class="logo-icon" aria-hidden="true">⛽</div><div class="title-block"><b>РАДАР <span>БАК</span></b><small>ОРЕНБУРГ • В MAX</small></div><div class="pilot-pill">ПИЛОТ</div></header>
+<header class="topbar"><div class="logo-icon" aria-hidden="true">⛽</div><div class="title-block"><b>ТОПЛИВО<span>56</span></b><small>ОРЕНБУРГ • МИНИ-ПРИЛОЖЕНИЕ MAX</small></div><div class="pilot-pill">ПИЛОТ</div></header>
 <main class="scroll-area" id="scroll-area">
 <section class="section active" id="tab-map">
-<div class="hero"><div class="hero-kicker"><span class="circle-status"></span> ТОЛЬКО БЕНЗИН И ДИЗЕЛЬ</div><h1>Топливо <em>на радаре.</em><br>Оренбург на связи.</h1><p>РАДАР БАК — узнай, где заправиться, и помоги другим водителям. Адреса, цены, наличие и очереди — по сообщениям автомобилистов.</p><div class="summary-grid"><div><strong id="summary-total">—</strong><span>в справочнике</span></div><div><strong id="summary-onmap">—</strong><span>на карте</span></div><div><strong id="summary-drafts">0</strong><span>локальных черновиков</span></div></div></div>
-<div class="notice"><span>ⓘ</span><p><b>Пилотный запуск.</b> Справочник АЗС требует проверки. Сведения присылают водители, а не операторы АЗС: не считай их гарантией наличия топлива. Приём общих сообщений включается владельцем после настройки и проверки правовых требований.</p></div><div class="api-connection" id="api-connection" aria-live="polite">○ База не настроена</div><button class="outline-btn reload-feed" id="reload-feed" type="button">↻ Обновить данные с базы</button>
+<div class="hero"><div class="hero-kicker"><span class="circle-status"></span> ТОЛЬКО БЕНЗИН И ДИЗЕЛЬ</div><h1>Топливо <em>рядом.</em><br>Без лишнего шума.</h1><p>Адреса по районам и сетям Оренбурга, избранные АЗС и быстрые сообщения от водителей.</p><div class="summary-grid"><div><strong id="summary-total">—</strong><span>в справочнике</span></div><div><strong id="summary-onmap">—</strong><span>на карте</span></div><div><strong id="summary-drafts">0</strong><span>локальных черновиков</span></div></div></div>
+<div class="notice"><span>ⓘ</span><p><b>Пилот.</b> Адреса и районы предварительные. Сведения от водителей не являются гарантией наличия топлива. Новая общая лента пока находится в закрытом режиме: публикация в базу отключена до проверки безопасности и правил обработки данных.</p></div><div class="api-connection" id="api-connection" aria-live="polite">○ База не настроена</div><button class="outline-btn reload-feed" id="reload-feed" type="button">↻ Обновить данные с базы</button>
 <div class="section-heading"><div><span class="eyebrow">ОРЕНБУРГ</span><h2>АЗС на карте</h2></div><button class="secondary small" id="reset-map" type="button">Обзор ↗</button></div>
 <div class="map-frame"><div id="map" aria-label="Карта бензиновых и дизельных АЗС Оренбурга"></div><div class="map-overlay top">● Точки с известными координатами</div><div class="map-error" id="map-error" hidden>Карта недоступна. Справочник адресов работает.</div></div>
 <div class="map-foot"><span><i class="legend-marker"></i> Точки из справочника, статус неизвестен</span><button id="open-list-from-map" type="button">По районам →</button></div>
+<div class="section-heading stacked"><div><span class="eyebrow">ОБЩАЯ АКТИВНОСТЬ</span><h2>Сводка за 15 минут</h2></div></div><div id="digest-15m" class="digest-panel" aria-live="polite"><p class="helper">Загрузка данных…</p></div>
 <div class="section-heading stacked"><div><span class="eyebrow">СООБЩЕНИЯ ВОДИТЕЛЕЙ</span><h2>Последние сообщения</h2></div></div><div id="community-list" class="community-list"><div class="empty">Пока нет сообщений сообщества.</div></div>
 <div class="section-heading stacked"><div><span class="eyebrow">БЫСТРЫЙ ДОСТУП</span><h2>Избранные АЗС</h2></div></div><div id="map-favorites" class="stack-cards"></div>
-<div class="example-box"><div class="example-tag">ПРИМЕР БУДУЩЕГО УВЕДОМЛЕНИЯ</div><strong>⛽ Лукойл · Шарлыкское шоссе, 11</strong><p>Участник MAX сообщил: АИ-95 отсутствует.<br>Ещё два водителя подтвердили.</p><button class="text-btn" id="show-example" type="button">Как будут отображаться подтверждения →</button><small>Вымышленные участники и событие. Не реальные сведения.</small></div>
+<div class="example-box"><div class="example-tag">ПРИМЕР ПОДТВЕРЖДЕНИЯ</div><strong>⛽ Лукойл · Шарлыкское шоссе, 11</strong><p>Форд • 324 сообщил: АИ-95 отсутствует.<br>Рено • 123 и Мазда • 376 подтвердили.</p><button class="text-btn" id="show-example" type="button">Как будут отображаться подтверждения →</button><small>Вымышленные участники и событие. Не реальные сведения.</small></div>
 </section>
 <section class="section" id="tab-list">
 <div class="section-heading intro"><div><span class="eyebrow">СПРАВОЧНИК ОРЕНБУРГА</span><h1>АЗС по районам</h1></div><span class="count-badge" id="list-count">—</span></div>
@@ -32,7 +33,7 @@
 </section>
 <section class="section" id="tab-subscriptions">
 <div class="section-heading intro"><div><span class="eyebrow">ПОДБОР УВЕДОМЛЕНИЙ</span><h1>Мои подписки</h1></div></div>
-<div class="sub-box"><div class="sub-icon">🔔</div><div><b>Уведомления по избранным, районам и сетям</b><p>До включения записи сохраняются на устройстве. После настройки сервера и включения уведомлений нажми «Сохранить подписки».</p></div></div>
+<div class="sub-box"><div class="sub-icon">🔔</div><div><b>Личные настройки ещё в предварительном режиме</b><p>Сохраняются только на этом устройстве и не управляют отправкой сообщений. В версии 0.5 предусмотрена общая сводка MAX для одного настроенного получателя — это не личная подписка.</p></div></div>
 <div class="setting-panel"><h3>О каких АЗС сообщать?</h3><div class="choice-grid" id="scope-choices"></div><p class="helper" id="scope-helper"></p>
 <div id="subscribe-district-section"><div class="filter-name">Районы</div><div class="check-stack" id="sub-districts"></div></div>
 <div id="subscribe-brand-section"><div class="filter-name">Сети и независимые АЗС</div><div class="check-stack" id="sub-brands"></div></div>
@@ -42,16 +43,19 @@
 <div class="filter-name">Режим доставки</div><div class="choice-grid" id="frequency-choices"></div><p class="helper">Обычные изменения будут собираться в сводку; значимые закрытия и восстановление работы — приоритетные. Повторы одного события объединяются.</p>
 <label class="toggle-line"><span><b>Тихие часы 22:00–08:00</b><small>По местному времени Оренбурга</small></span><input id="quiet-hours" type="checkbox"></label>
 <label class="toggle-line"><span><b>Недельная сводка по понедельникам</b><small>В 09:00, если включено</small></span><input id="weekly-digest" type="checkbox"></label>
-<button class="main-btn" id="save-subs" type="button">Сохранить подписки</button><button class="outline-btn" id="disable-subs" type="button">Отключить все уведомления</button></div>
+<button class="main-btn" id="save-subs" type="button">Сохранить настройки на устройстве</button></div>
 </section>
 <section class="section" id="tab-profile">
 <div class="section-heading intro"><div><span class="eyebrow">ВКЛАД В СООБЩЕСТВО</span><h1>Профиль и рейтинг</h1></div></div>
-<div class="profile-card"><div id="avatar" class="avatar">М</div><div><b id="profile-name">Пользователь MAX</b><span id="profile-source">Имя автоматически берётся из MAX, изменить здесь нельзя</span></div></div>
-<div class="setting-panel"><h3>Имя участника</h3><p class="helper">Вместо вымышленных автомобильных псевдонимов используем имя, указанное в профиле MAX. Если приложение открыто вне MAX, имя недоступно. В этой версии оно отображается только на экране и не сохраняется в Google Таблицах.</p><p class="helper">При запуске публичных публикаций перед отправкой сообщим, что это имя увидят другие водители, и запросим согласие.</p></div>
-<div class="rating-cards"><div><b id="rating-accuracy">—</b><span>Рейтинг точности</span></div><div><b id="rating-votes">—</b><span>Рейтинг подтверждений</span></div><div><b id="rating-reports">0</b><span>Проверенных сообщений</span></div></div><button type="button" class="outline-btn" id="refresh-rating">↻ Обновить мой рейтинг</button>
+<div class="profile-card"><div id="avatar" class="avatar">56</div><div><b id="profile-name">Водитель Оренбурга</b><span>Псевдоним для будущих публикаций</span></div></div>
+<div class="setting-panel"><h3>Мой псевдоним</h3><p class="helper">Например, «Форд • 324». Не вводи госномер автомобиля или настоящее имя: они для сервиса не нужны.</p>
+<div class="alias-edit"><select id="alias-brand" aria-label="Название автомобиля"><option>Форд</option><option>Рено</option><option>Мазда</option><option>Лада</option><option>Киа</option><option>Тойота</option><option>Другой водитель</option></select><input id="alias-number" type="text" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" aria-label="Три цифры псевдонима"></div>
+<label class="toggle-line"><span><b>Показывать мой псевдоним публично</b><small>Пока это только локальная настройка</small></span><input id="public-alias" type="checkbox"></label><button class="outline-btn" id="save-alias" type="button">Сохранить псевдоним</button></div>
+<div class="rating-cards"><div><b>—</b><span>Рейтинг точности</span></div><div><b>0</b><span>Независимых подтверждений</span></div><div><b>0</b><span>Проверенных сообщений</span></div></div>
 <div class="rating-info"><h3>Как будет формироваться репутация?</h3><p><b>Два независимых показателя:</b> точность сообщений и качество подтверждений. Учитывается история последних 60 проверенных действий, а не число нажатий.</p><p>Рейтинг станет доступен после накопления не менее 10 проверенных сообщений. Повторные сообщения, взаимные накрутки и подтверждения своего сообщения не засчитываются.</p><p>Это наша собственная модель репутации, не алгоритм Яндекс Такси.</p></div>
 <div class="profile-section"><h2>Мои черновики <span id="draft-count">0</span></h2><p>Эти записи <b>не отправлены другим пользователям</b> и не влияют на общий рейтинг. Они остаются на данном устройстве.</p><div id="draft-list" class="draft-list"></div></div>
-<div class="profile-section"><h2>Управление данными</h2><p>Если ты участвовал в тестировании, можешь удалить свои публикации, подтверждения и подписки с сервера. Уже отправленные другим людям сообщения отозвать невозможно.</p><button class="outline-btn" id="delete-profile" type="button">Удалить мои данные с сервера</button></div><div class="profile-section"><h2>О проекте</h2><p>РАДАР БАК — «Топливо на радаре. Оренбург на связи». Пилотный справочник бензиновых и дизельных АЗС Оренбурга. Адреса и районы требуют актуализации. Приложение не гарантирует наличие топлива, цену или часы работы.</p><p>© OpenStreetMap contributors. Для общей системы сообщений и уведомлений потребуется защищённый серверный компонент и соответствующее законодательству хранение данных.</p><a class="link-max" href="https://max.ru/se14329885_bot" target="_blank" rel="noopener">Открыть бота в MAX ↗</a></div>
+<div class="profile-section"><h2>Получатель тестовой сводки MAX</h2><p class="helper">Для настройки отправки администратору открой эту страницу внутри MAX и узнай свой числовой идентификатор. Он нужен только в закрытых свойствах Apps Script.</p><button class="outline-btn" type="button" id="show-max-id">Показать мой MAX ID</button><p class="helper" id="my-max-id" aria-live="polite"></p></div>
+<div class="profile-section"><h2>О проекте</h2><p>ТОПЛИВО56 — пилотный справочник бензиновых и дизельных АЗС Оренбурга. Адреса и районы требуют актуализации. Приложение не гарантирует наличие топлива, цену или часы работы.</p><p>© OpenStreetMap contributors. Для общей системы сообщений и уведомлений потребуется защищённый серверный компонент и соответствующее законодательству хранение данных.</p><a class="link-max" href="https://max.ru/se14329885_bot" target="_blank" rel="noopener">Открыть UniBot ↗</a></div>
 </section>
 </main>
 <button class="floating-report" type="button" id="fab-report"><span>＋</span> Сообщить об АЗС</button>

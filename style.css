@@ -48,6 +48,8 @@
 .toggle-line{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:15px 0;border-bottom:1px solid #30464a}
 .toggle-line b{display:block;font-size:12px;line-height:1.5}
 .toggle-line small{display:block;font-size:10px;color:#a5b9ba;line-height:1.4;margin-top:4px}
+.alias-edit{display:flex;gap:10px;margin-bottom:12px}
+.alias-edit select,.alias-edit input{width:50%;min-width:0;background:#0e2027;border:1px solid #617578;color:#eef7f5;border-radius:12px;padding:13px;font-size:13px}
 .rating-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:19px 0}
 .rating-cards div{background:#22343b;border:1px solid #436063;border-radius:14px;padding:12px 8px;min-height:98px}
 .rating-cards b{display:block;color:var(--accent);font-size:27px;text-align:center}
@@ -93,20 +95,10 @@
 .community-actions button{flex:1;min-width:120px;border:1px solid #5a7772;border-radius:10px;background:#273c3f;color:#d7f0e9;padding:10px 8px;font-size:12px;font-weight:700}
 .community-note{font-size:10px;color:#adbdc2;margin-top:8px;line-height:1.5}
 
-/* v0.5.1: multiple fuel observations */
-.multi-fuel-list{display:grid;gap:9px;margin:10px 0 15px}
-.multi-fuel-row,.multi-price-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#172a31;border:1px solid #415a5b;border-radius:13px;padding:12px}
-.multi-fuel-row>b,.multi-price-row>b{font-size:14px;min-width:55px}
-.multi-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-.multi-actions button{border:1px solid #586f72;background:#243b42;color:#dce9e7;border-radius:11px;padding:10px 13px;font-size:12px;font-weight:750;min-width:70px}
-.multi-actions button[data-availability-value="есть"].active{border-color:#5fda9f;background:#245e48;color:#ecfff4}
-.multi-actions button[data-availability-value="нет"].active{border-color:#f2a08f;background:#603e38;color:#ffe3d9}
-.multi-price-row input{width:130px;max-width:60%;border-radius:10px;background:#0f222a;border:1px solid #5e7878;color:white;padding:10px 12px;font-size:14px}
-@media(max-width:365px){.multi-fuel-row{padding:9px;gap:4px}.multi-actions button{min-width:61px;padding:10px 7px}}
-
-/* RADAR BAK v1.0: участники подтверждений */
-.confirmers{margin:10px 0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:12px}
-.confirmers summary{cursor:pointer;font-weight:700;color:#d8f15b}
-.confirmers div{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
-.confirm-name{padding:4px 7px;border-radius:7px;background:#213c39;color:#d7f2dd}
-#refresh-rating{margin:2px 0 16px}
+/* Сводка за 15 минут из общей базы; не включает локальные черновики. */
+.digest-panel{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:14px 16px;margin:4px 0 12px;}
+.digest-panel .helper{margin:3px 0 9px;}
+.digest-row{display:flex;flex-direction:column;gap:5px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.09);font-size:13px;}
+.digest-row:last-child{border-bottom:none;}
+.digest-row b{font-weight:650;line-height:1.45;}
+.digest-row span{opacity:.85;line-height:1.5;}
