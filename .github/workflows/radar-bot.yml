@@ -1,0 +1,42 @@
+name: РАДАР БАК — MAX
+
+on:
+  schedule:
+    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-max-bot
+  cancel-in-progress: false
+
+jobs:
+  check-max:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      MAX_BOT_TOKEN: ${{ secrets.MAX_BOT_TOKEN }}
+      GAS_URL: ${{ secrets.GAS_URL }}
+      GAS_SECRET: ${{ secrets.GAS_SECRET }}
+      DB_PATH: ${{ runner.temp }}/radar.sqlite3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare files uploaded to repository root
+        shell: bash
+        run: |
+          mkdir -p app data
+          for f in __init__.py bot.py max_api.py store.py worker.py; do
+            test -s "$f" || { echo "Missing $f"; exit 1; }
+            cp "$f" "app/$f"
+          done
+          test -s stations.csv || { echo 'Missing stations.csv'; exit 1; }
+          cp stations.csv data/stations.csv
+      - name: Install dependencies
+        run: python -m pip install requests==2.32.5 certifi==2026.5.20 cryptography==46.0.4
+      - name: Check MAX bot
+        run: python -m app.worker
