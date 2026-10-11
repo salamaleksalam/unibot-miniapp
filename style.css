@@ -113,3 +113,16 @@
 
 .station-directions{display:block;text-align:center;text-decoration:none;margin-top:12px}
 .reputation-help{padding:0 4px;margin-top:6px;color:var(--sub);font-size:12px;line-height:1.55}
+
+/* РАДАР БАК 2.1 — подтверждение сохранения и мобильные экраны MAX */
+[hidden]{display:none!important}
+.sync-state{font-size:12px;color:#d8f1bf;line-height:1.5;margin:12px 0}
+.legal-links{display:grid;gap:8px;margin:10px 0 14px}
+.legal-links a{display:block;color:#d8f15b;text-decoration:underline;font-size:12px;line-height:1.5}
+.request-busy #save-subs,.request-busy #disable-subs,.request-busy #save-multi-availability,
+.request-busy #save-multi-prices,.request-busy .outcome-options button,
+.request-busy [data-vote],.request-busy #delete-profile{pointer-events:none;opacity:.60}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #d8f15b;outline-offset:2px}
+@media(max-width:480px){.bottom-sheet{max-height:min(92dvh,92vh);overflow-y:auto;overscroll-behavior:contain}
+ .scroll-area{padding-bottom:calc(116px + env(safe-area-inset-bottom,0px))}
+ .bottom-nav{padding-bottom:max(8px, env(safe-area-inset-bottom,0px))}}

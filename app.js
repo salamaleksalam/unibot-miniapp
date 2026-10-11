@@ -12,29 +12,55 @@ const canon = name => name.startsWith('Газпром АЗС') ? 'Газпром
 const stations = raw.filter(s=>!/(?:^|\s)(?:АГЗС|АГНКС)(?:\s|$)/i.test(s.name)).map(s=>({...s,brand:canon(s.name),local:!majorBrands.includes(canon(s.name))}));
 const byId = new Map(stations.map(s=>[s.id,s]));
 const KEY='radarbak_user_v2';
+// Локальные настройки разделены по MAX ID. ID не передаётся на сторонние сервисы.
+function storageKey(){
+ let id='';
+ try{
+  const raw=window.WebApp?.initData||new URLSearchParams(location.hash.slice(1)).get('WebAppData')||'';
+  const json=new URLSearchParams(raw).get('user')||'';
+  id=json.match(/"id"\s*:\s*"?(\d{1,20})"?(?=\s*[,}])/)?.[1]||'';
+ }catch(e){}
+ if(!id)id=String(window.WebApp?.initDataUnsafe?.user?.id||'');
+ return /^\d{1,20}$/.test(id)?KEY+'_'+id:KEY+'_guest';
+}
 const defaults = {favorites:[],prefs:{scopes:['favorites'],districts:[],brands:[],events:['availability','closure','price'],fuel:'АИ-95',frequency:'balanced',quiet:true,weekly:true}};
 const clone = x => JSON.parse(JSON.stringify(x));
 let state = clone(defaults);
-try { const prev = JSON.parse(localStorage.getItem(KEY)||'null'); if(prev&&typeof prev==='object') {
+try {
+ const key=storageKey();const scoped=localStorage.getItem(key);
+ const legacy=!scoped&&key!==KEY+'_guest'?localStorage.getItem(KEY):null;
+ const prev=JSON.parse(scoped||legacy||'null');
+ if(legacy&&prev){localStorage.setItem(key,legacy);localStorage.removeItem(KEY);}
+ if(prev&&typeof prev==='object') {
   state.favorites = Array.isArray(prev.favorites)?prev.favorites.filter(id=>byId.has(id)):[];
   state.prefs = {...defaults.prefs,...prev.prefs};if(!Array.isArray(state.prefs.scopes))state.prefs.scopes=[state.prefs.scope||'favorites'];
 }} catch(e){}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch(e){toast('Не удалось сохранить: хранилище браузера недоступно');return false}}
+function save(){try{localStorage.setItem(storageKey(),JSON.stringify(state));return true}catch(e){return false}}
 const $ = id=>document.getElementById(id);
 const esc = str => String(str===null||str===undefined?'':str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el=(tag,cls,html)=>{let x=document.createElement(tag);if(cls)x.className=cls;if(html!==undefined)x.innerHTML=html;return x};
-let map = null,markers=[], selectedDistrict='Все',selectedBrand='Все',search='',currentTab='map',hideTimeout;
+let map = null,markers=[], selectedDistrict='Все',selectedBrand='Все',selectedFuel='Все',search='',currentTab='map',hideTimeout;
 let activeStation=null, reportFuel=state.prefs.fuel, multiAvailability={};
-let feed=[], community=[], serverWritesEnabled=false, isFeedLoading=false, feedTimer=null, writeBusy=false; const markerByStation=new Map();
+let feed=[], community=[], serverWritesEnabled=false, isFeedLoading=false, feedTimer=null, writeBusy=false, accountLoaded=false, accountLoading=false, prefsDirty=false; const markerByStation=new Map();
 function toast(msg){const x=$('toast');x.textContent=msg;x.classList.add('show');clearTimeout(hideTimeout);hideTimeout=setTimeout(()=>x.classList.remove('show'),3500)}
 function localBadge(s){return s.local?'<span class="local-badge" title="Сеть не входит в основной список">◆ Другая сеть</span>':''}
-function switchTab(tab){currentTab=tab;document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id==='tab-'+tab));document.querySelectorAll('.nav-button').forEach(x=>{let is=x.dataset.tab===tab;x.classList.toggle('active',is);x.setAttribute('aria-current',is?'page':'false')});$('scroll-area').scrollTo({top:0});if(tab==='map') {setTimeout(()=>{ensureMap();map&&map.invalidateSize(true)},80)}if(tab==='list')renderList();if(tab==='subscriptions')renderSubscriptions();if(tab==='profile')renderProfile()}
-function filtered(){return stations.filter(s=>(selectedDistrict==='Все'||s.district===selectedDistrict)&&(selectedBrand==='Все'||(selectedBrand==='Другие сети'?s.local:s.brand===selectedBrand))&&(`${s.name} ${s.address} ${s.district}`.toLowerCase().includes(search.toLowerCase())))}
+function switchTab(tab){currentTab=tab;document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id==='tab-'+tab));document.querySelectorAll('.nav-button').forEach(x=>{let is=x.dataset.tab===tab;x.classList.toggle('active',is);x.setAttribute('aria-current',is?'page':'false')});$('scroll-area').scrollTo({top:0});if(tab==='map') {setTimeout(()=>{ensureMap();map&&map.invalidateSize(true)},80)}if(tab==='list')renderList();if(tab==='subscriptions')renderSubscriptions();if(tab==='profile'){renderProfile();if(!accountLoaded)loadAccount()}}
+function filtered(){return stations.filter(s=>(selectedDistrict==='Все'||s.district===selectedDistrict)&&(selectedBrand==='Все'||(selectedBrand==='Другие сети'?s.local:s.brand===selectedBrand))&&(`${s.name} ${s.address} ${s.district}`.toLowerCase().includes(search.toLowerCase()))&&(selectedFuel==='Все'||latestEvent(s.id,'availability',selectedFuel)?.value==='есть'))}
 function makeChip(container,text,active,onClick){const b=el('button','chip'+(active?' active':''),esc(text));b.type='button';b.addEventListener('click',onClick);container.appendChild(b)}
-function setupFilters(){const d=$('district-filters');d.innerHTML='';['Все',...districts].forEach(n=>makeChip(d,n,selectedDistrict===n,()=>{selectedDistrict=n;setupFilters();renderList()}));const b=$('brand-filters');b.innerHTML='';['Все',...brandKeys].forEach(n=>makeChip(b,n,selectedBrand===n,()=>{selectedBrand=n;setupFilters();renderList()}));$('fuel-filters').innerHTML='';fuels.forEach(n=>makeChip($('fuel-filters'),n,state.prefs.fuel===n,()=>{state.prefs.fuel=n;reportFuel=n;save();setupFilters();renderList();updateMapMarkers();toast('Топливо для быстрых сообщений: '+n)}))}
+function setupFilters(){
+ const d=$('district-filters');d.innerHTML='';['Все',...districts].forEach(n=>makeChip(d,n,selectedDistrict===n,()=>{selectedDistrict=n;setupFilters();renderList()}));
+ const b=$('brand-filters');b.innerHTML='';['Все',...brandKeys].forEach(n=>makeChip(b,n,selectedBrand===n,()=>{selectedBrand=n;setupFilters();renderList()}));
+ $('fuel-filters').innerHTML='';['Все',...fuels].forEach(n=>makeChip($('fuel-filters'),n,selectedFuel===n,()=>{selectedFuel=n;setupFilters();renderList()}));
+}
 
 function confirmedCommunity(){return community.filter(x=>x.review==='подтверждено участниками');}
-function eventsForStation(id){return [...feed,...confirmedCommunity().filter(x=>x.stationId===id).map(x=>({...x,community:true}))].sort((a,b)=>b.ts.localeCompare(a.ts)) .filter(x=>x.stationId===id)}
+const eventTtl={availability:90,price:4320,queue:30,closure:120};
+function eventsForStation(id){
+ const now=Date.now();
+ return [...feed,...confirmedCommunity().filter(x=>x.stationId===id).map(x=>({...x,community:true}))]
+  .filter(x=>x.stationId===id&&Number.isFinite(Date.parse(x.ts))&&now-Date.parse(x.ts)<eventTtl[x.type]*60000)
+  .sort((a,b)=>b.ts.localeCompare(a.ts));
+}
 function latestEvent(id,type,fuel=''){
  return eventsForStation(id).find(x=>x.type===type && (fuel ? x.fuel===fuel : true)) || null;
 }
@@ -56,7 +82,7 @@ function getMaxInitData(){
  if(v)return v;
  try{return new URLSearchParams(location.hash.slice(1)).get('WebAppData')||''}catch(e){return ''}
 }
-function liveWritesEnabled(){return serverWritesEnabled && window.TOPLIVO56_CONFIG?.COMMUNITY_WRITES_ENABLED===true}
+function liveWritesEnabled(){return serverWritesEnabled}
 function randomRequestId(){const a=new Uint8Array(18);crypto.getRandomValues(a);return 'req_'+Array.from(a,b=>('0'+b.toString(16)).slice(-2)).join('')}
 function readJsonp(action, params={}){
  return new Promise((resolve,reject)=>{
@@ -73,85 +99,102 @@ function readJsonp(action, params={}){
 }
 function sendCommunity(action,params){
  return new Promise((resolve,reject)=>{
-   const api=String(window.TOPLIVO56_CONFIG?.API_URL||'');
-   const data=getMaxInitData();
-   if(!liveWritesEnabled())return reject(new Error('Публикация временно недоступна'));
-   if(!data)return reject(new Error('Для публикации открой приложение внутри MAX'));
-   if(writeBusy)return reject(new Error('Сначала дождись завершения предыдущей операции'));
-   writeBusy=true;
-   const req=randomRequestId(),iframe=document.createElement('iframe'),form=document.createElement('form');
-   iframe.name='post_'+req;iframe.style.display='none';iframe.setAttribute('aria-hidden','true');
-   form.action=api;form.method='POST';form.target=iframe.name;form.style.display='none';
-   const all={...params,action,webAppData:data,requestId:req};
+  const api=String(window.TOPLIVO56_CONFIG?.API_URL||'');
+  const data=getMaxInitData();
+  if(!liveWritesEnabled())return reject(Error('Сервис публикаций недоступен'));
+  if(!data)return reject(Error('Открой приложение внутри MAX'));
+  if(writeBusy)return reject(Error('Предыдущая операция ещё выполняется'));
+  writeBusy=true;document.body.classList.add('request-busy');
+  const req=randomRequestId(), all={...params,action,webAppData:data,requestId:req};
+  const began=Date.now();
+  let settled=false, iframe=null, form=null, fallbackStarted=false,receiptTimer=null,cleanupTimer=null,fallbackTimer=null;
+  const clean=()=>{clearTimeout(receiptTimer);clearTimeout(fallbackTimer);clearTimeout(cleanupTimer);
+   window.removeEventListener('message',receive);iframe?.remove();form?.remove();writeBusy=false;document.body.classList.remove('request-busy')};
+  const finish=(err,result)=>{if(settled)return;settled=true;clean();err?reject(err):resolve(result)};
+  const receive=e=>{
+   if(!iframe||e.source!==iframe.contentWindow)return;
+   if(!['https://script.google.com','https://script.googleusercontent.com','null'].includes(e.origin))return;
+   const r=e.data;if(!r||r.channel!=='toplivo56-write'||r.requestId!==req)return;
+   r.ok?finish(null,r):finish(Error(r.error||'Сервер отклонил запрос'));
+  };
+  function viaIframe(){
+   if(settled||fallbackStarted)return;
+   fallbackStarted=true;
+   iframe=document.createElement('iframe');iframe.name='post_'+req;iframe.hidden=true;
+   iframe.style.display='none';iframe.setAttribute('aria-hidden','true');
+   form=document.createElement('form');form.action=api;form.method='POST';form.target=iframe.name;
+   form.hidden=true;form.style.display='none';
    Object.entries(all).forEach(([k,v])=>{const x=document.createElement('input');x.type='hidden';x.name=k;x.value=String(v);form.appendChild(x)});
-   let settled=false,cleanupTimer,receiptTimer;
-   const finish=(err,result)=>{if(settled)return;settled=true;clearTimeout(cleanupTimer);clearTimeout(receiptTimer);window.removeEventListener('message',receive);iframe.remove();form.remove();writeBusy=false;err?reject(err):resolve(result)};
-   const receive=e=>{
-     if(!['https://script.google.com','https://script.googleusercontent.com','null'].includes(e.origin))return;
-     const result=e.data;
-     if(!result||result.channel!=='toplivo56-write'||result.requestId!==req)return;
-     result.ok?finish(null,result):finish(Error(result.error||'Сервер отклонил запрос'));
-   };
-   window.addEventListener('message',receive);document.body.appendChild(iframe);document.body.appendChild(form);
-   // Поддержка браузеров MAX, блокирующих ответы Google из вложенных iframe:
-   // подтверждаем результат по одноразовому номеру запроса (идемпотентно).
-   const began=Date.now();
-   async function checkReceipt(){
-     if(settled)return;
-     try{const d=await readJsonp('receipt',{requestId:req});
-       if(d&&d.pending!==true){d.ok?finish(null,d):finish(Error(d.error||'Сервер отклонил запрос'));return;}
-     }catch(e){}
-     if(!settled&&Date.now()-began<55000)receiptTimer=setTimeout(checkReceipt,4500);
-   }
-   cleanupTimer=setTimeout(()=>finish(Error('Подтверждение не получено. Не повторяй операцию сразу: проверь общую ленту и перезапусти приложение.')),60000);
-   try{form.submit();receiptTimer=setTimeout(checkReceipt,5000)}catch(e){finish(e)}
+   document.body.appendChild(iframe);document.body.appendChild(form);
+   try{form.submit()}catch(e){/* Квитанция покажет результат исходного fetch, если тот дошёл. */}
+  }
+  window.addEventListener('message',receive);
+  async function poll(){
+   if(settled)return;
+   try{const d=await readJsonp('receipt',{requestId:req});
+    if(d&&d.pending!==true){d.ok?finish(null,d):finish(Error(d.error||'Сервер отклонил запрос'));return;}
+   }catch(e){}
+   if(!settled&&Date.now()-began<59000)receiptTimer=setTimeout(poll,3500);
+  }
+  // Основная доставка — простой POST без CORS; его непрозрачный HTTP-ответ
+  // НИКОГДА не считается подтверждением. Истина только в серверной квитанции.
+  const body=new URLSearchParams(all).toString();
+  if(typeof fetch==='function'){
+   try{fetch(api,{method:'POST',mode:'no-cors',credentials:'omit',redirect:'follow',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},body,referrerPolicy:'no-referrer'})
+    .catch(()=>viaIframe());}
+   catch(e){viaIframe()}
+  }else viaIframe();
+  fallbackTimer=setTimeout(viaIframe,11500);
+  receiptTimer=setTimeout(poll,2200);
+  cleanupTimer=setTimeout(()=>finish(Error('Сервер не подтвердил действие. Не отправляй повторно сразу: обнови сведения или проверь подписку.')),62000);
  });
 }
 async function voteCommunity(id,decision){
  if(!liveWritesEnabled()){toast('Подтверждение временно недоступно');return}
  try{
    if(!window.confirm('Отправить подтверждение? Другие участники увидят твоё имя из MAX. Подтверждай только лично проверенные сведения.'))return;
-   await sendCommunity('vote',{reportId:id,decision,publicNameConsent:'YES'});toast('Оценка отправлена. Спасибо!');setTimeout(loadPublicFeed,1400)
+   const result=await sendCommunity('vote',{reportId:id,decision,publicNameConsent:'YES'});if(!result.ok)throw Error('Сервер не подтвердил оценку');toast('Оценка зарегистрирована');setTimeout(loadPublicFeed,1400)
  }
  catch(e){toast(e.message)}
 }
 function renderFeedUI(){renderList();renderFavorites();renderCommunity();updateMapMarkers();if(activeStation&&$('sheet')&&!$('sheet').hidden&&$('sheet').dataset.view==='detail')showDetail(activeStation)}
 function setFeedStatus(message){const el=$('api-connection');if(el)el.textContent=message}
-function loadPublicFeed(){
+async function loadPublicFeed(){
  const url=String(window.TOPLIVO56_CONFIG?.API_URL||'').trim();
  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
-   serverWritesEnabled=false;setFeedStatus('○ Сведения участников сейчас недоступны');return;
+  serverWritesEnabled=false;setFeedStatus('○ Сервер сведений не настроен');return;
  }
  if(isFeedLoading)return;
- isFeedLoading=true;setFeedStatus('◌ Загружаем опубликованные сведения…');
- const name='toplivo56_cb_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
- const scr=document.createElement('script');let done=false;
- const stop=(msg)=>{if(done)return;done=true;clearTimeout(timeout);delete window[name];scr.remove();isFeedLoading=false;if(msg)setFeedStatus(msg)};
- const timeout=setTimeout(()=>{serverWritesEnabled=false;stop('⚠ Нет связи с сервером. Публикация недоступна.')},25000);
- window[name]=data=>{
-   if(!data||data.ok!==true||!Array.isArray(data.items)){
-     serverWritesEnabled=false;stop('⚠ Сведения временно недоступны');return;
-   }
-   feed=data.items.filter(x=>x&&byId.has(x.stationId)&&['availability','price','queue','closure'].includes(x.type)
-       &&typeof x.ts==='string'&&Number.isFinite(Date.parse(x.ts)))
-       .sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,300);
-   community=(Array.isArray(data.community)?data.community:[]).filter(x=>x&&byId.has(x.stationId)&&/^p-[0-9a-f-]{36}$/i.test(x.id)&&Number.isFinite(Date.parse(x.ts))).slice(0,100);
-   renderFeedUI();
-     serverWritesEnabled = data.build === '2.0' && data.writesEnabled === true;
-   stop(serverWritesEnabled?'● Сервис работает · сообщений: '+community.length:'● Справочник доступен · публикация временно недоступна');
- };
- scr.onerror=()=>{serverWritesEnabled=false;stop('⚠ Нет соединения с сервером')};
- scr.src=url+'?action=feed&callback='+encodeURIComponent(name)+'&ts='+Date.now();
- document.head.appendChild(scr);
+ isFeedLoading=true;setFeedStatus('◌ Загружаем сообщения…');
+ try{
+  const data=await readJsonp('feed',{ts:Date.now()});
+  if(!data||data.ok!==true||!Array.isArray(data.community))throw Error('Неверный ответ сервера');
+  feed=(Array.isArray(data.items)?data.items:[]).filter(x=>x&&byId.has(x.stationId)
+    &&['availability','price','queue','closure'].includes(x.type)&&Number.isFinite(Date.parse(x.ts))).slice(0,300);
+  community=data.community.filter(x=>x&&byId.has(x.stationId)&&/^p-[0-9a-f-]{36}$/i.test(x.id)
+    &&Number.isFinite(Date.parse(x.ts))&&['availability','price','queue','closure'].includes(x.type)).slice(0,180);
+  serverWritesEnabled=data.build==='2.1'&&data.writesEnabled===true;
+  const legal=data.legal||{};
+  const privacy=$('privacy-link'),terms=$('terms-link'),operator=$('operator-name');
+  const valid=v=>typeof v==='string'&&/^https:\/\//.test(v);
+  if(privacy){privacy.hidden=!valid(legal.privacyUrl);if(!privacy.hidden)privacy.href=legal.privacyUrl;}
+  if(terms){terms.hidden=!valid(legal.termsUrl);if(!terms.hidden)terms.href=legal.termsUrl;}
+  if(operator)operator.textContent=legal.operator?'Оператор: '+legal.operator:'';
+  renderFeedUI();
+  setFeedStatus(serverWritesEnabled?'● Сервер подключён · сообщений: '+community.length:'● Справочник доступен · публикация отключена');
+  if(serverWritesEnabled&&!accountLoaded&&!accountLoading&&getMaxInitData())loadAccount();
+ }catch(e){serverWritesEnabled=false;setFeedStatus('⚠ Нет связи с сервером · записи не отправляются');}
+ finally{isFeedLoading=false;}
 }
 function markerColor(s){const cl=latestEvent(s.id,'closure');if(cl&&cl.value!=='открыта снова')return '#e1a35f'; const a=latestEvent(s.id,'availability',state.prefs.fuel);return a?(a.value==='есть'?'#5bd29f':'#ee8279'):'#8e9fa3'}
-function updateMapMarkers(){for(const [id,m] of markerByStation){const s=byId.get(id);if(!s)continue;const color=markerColor(s);m.setStyle({color,fillColor:color});}}
+function updateMapMarkers(){const legend=$('map-legend');if(legend)legend.textContent='Цвет точки — сведения о '+state.prefs.fuel+'; серый — нет данных, оранжевый — закрытие';for(const [id,m] of markerByStation){const s=byId.get(id);if(!s)continue;const color=markerColor(s);m.setStyle({color,fillColor:color});}}
 function stationCard(s){const fav=state.favorites.includes(s.id);let wrap=el('div','station-card',`<div class="station-main"><span class="station-icon">⛽</span><div class="station-title"><b>${esc(s.name)}</b><small>${esc(s.address)} · ${esc(s.district)} район</small></div><button class="favorite-btn ${fav?'is-fav':''}" data-fav="${s.id}" type="button" aria-label="${fav?'Удалить из избранного':'Добавить в избранное'}">${fav?'★':'☆'}</button></div>${localBadge(s)}<div class="station-meta"><span>${stationMeta(s)}</span>${Number.isFinite(s.lat)&&Number.isFinite(s.lon)?'<span>◉ На карте</span>':'<span>Адрес в справочнике</span>'}</div><div class="status-strip">${["АИ-92","АИ-95","ДТ"].map(f=>fuelChip(s,f)).join("")}</div><div class="card-actions"><button class="report" data-report="${s.id}" type="button">＋ Сообщить</button><button class="detail" data-detail="${s.id}" type="button">Карточка АЗС</button></div>`);return wrap}
-function renderList(){const arr=filtered();$('list-count').textContent=arr.length;$('results-note').textContent=`Найдено ${arr.length} записей. Фильтр топлива задаёт марку для быстрого сообщения, а не подтверждает её наличие.`;const out=$('list-stations');out.innerHTML='';if(!arr.length){out.innerHTML='<div class="empty">Ничего не найдено. Попробуй выбрать другой район или сеть.</div>';return}
+function renderList(){const arr=filtered();$('list-count').textContent=arr.length;$('results-note').textContent=selectedFuel==='Все'?`Найдено ${arr.length} АЗС. Наличие и цены — только по сообщениям водителей.`:`Найдено ${arr.length} АЗС с подтверждённым сообщением о наличии ${selectedFuel}. Если данных нет, станция не показывается.`;const out=$('list-stations');out.innerHTML='';if(!arr.length){out.innerHTML='<div class="empty">Ничего не найдено. Попробуй выбрать другой район или сеть.</div>';return}
  districts.forEach((district,i)=>{const ss=arr.filter(s=>s.district===district);if(!ss.length)return;const box=el('details','district-group');box.open=(selectedDistrict!=='Все'||search.length>0||selectedBrand!=='Все'||i===0);box.innerHTML=`<summary><span>📍 ${district} район</span><b>${ss.length} АЗС <span aria-hidden="true">⌄</span></b></summary>`;const list=el('div','station-list');ss.forEach(s=>list.appendChild(stationCard(s)));box.appendChild(list);out.appendChild(box)})}
-function toggleFav(id){if(!byId.has(id))return;let i=state.favorites.indexOf(id);if(i<0)state.favorites.push(id);else state.favorites.splice(i,1);save();renderList();renderFavorites();renderSubscriptions();if(activeStation===id)showDetail(id);toast(i<0?'АЗС добавлена в избранное':'АЗС удалена из избранного')}
+function toggleFav(id){if(!byId.has(id))return;let i=state.favorites.indexOf(id);if(i<0)state.favorites.push(id);else state.favorites.splice(i,1);const persisted=save();renderList();renderFavorites();renderSubscriptions();markPrefsDirty();if(activeStation===id)showDetail(id);toast(!persisted?'Избранное не сохранится после закрытия MAX':i<0?'АЗС добавлена в избранное':'АЗС удалена из избранного')}
 function renderFavorites(){const f=state.favorites.map(id=>byId.get(id)).filter(Boolean);$('map-favorites').innerHTML='';if(f.length){f.slice(0,5).forEach(s=>$('map-favorites').appendChild(stationCard(s)))}else {$('map-favorites').innerHTML='<div class="empty">Пока нет избранных АЗС. Открой раздел «АЗС» и нажми ☆ возле нужного адреса.</div>'}}
-function ensureMap(){if(map)return; if(!window.L){$('map-error').hidden=false;return;} try{map=L.map('map',{zoomControl:true,attributionControl:true,scrollWheelZoom:false}).setView([51.772,55.12],10);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).on('tileerror',()=>{}).addTo(map);const coords=[];stations.forEach(s=>{if(!Number.isFinite(s.lat)||!Number.isFinite(s.lon))return;coords.push([s.lat,s.lon]);const m=L.circleMarker([s.lat,s.lon],{radius:7,color:s.local?'#fdb870':'#d8f15b',fillColor:s.local?'#fdb870':'#d8f15b',fillOpacity:.95,weight:2}).on('click',()=>showDetail(s.id)).addTo(map);markers.push(m);markerByStation.set(s.id,m)});updateMapMarkers();$('summary-onmap').textContent=coords.length;if(coords.length)map.fitBounds(coords,{padding:[18,18],maxZoom:11});setTimeout(()=>map.invalidateSize(true),300)}catch(e){$('map-error').hidden=false}}
+function ensureMap(){if(map)return; if(!window.L){$('map-error').hidden=false;return;} try{map=L.map('map',{zoomControl:true,attributionControl:true,scrollWheelZoom:false}).setView([51.772,55.12],10);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).on('tileerror',()=>{}).addTo(map);const coords=[];stations.forEach(s=>{if(!Number.isFinite(s.lat)||!Number.isFinite(s.lon))return;coords.push([s.lat,s.lon]);const m=L.circleMarker([s.lat,s.lon],{radius:8,color:'#8e9fa3',fillColor:'#8e9fa3',fillOpacity:.95,weight:2}).on('click',()=>showDetail(s.id)).addTo(map);markers.push(m);markerByStation.set(s.id,m)});updateMapMarkers();$('summary-onmap').textContent=coords.length;if(coords.length)map.fitBounds(coords,{padding:[18,18],maxZoom:11});setTimeout(()=>map.invalidateSize(true),300)}catch(e){$('map-error').hidden=false}}
 function sheetOpen(title,html){$('sheet').dataset.view='';$('sheet-title').textContent=title;$('sheet-content').innerHTML=html;$('sheet-backdrop').hidden=false;$('sheet').hidden=false;document.body.classList.add('modal-open')}
 function closeSheet(){$('sheet').hidden=true;$('sheet-backdrop').hidden=true;document.body.classList.remove('modal-open');activeStation=null}
 function showDetail(id){
@@ -190,7 +233,7 @@ async function saveMultiItems(items){
  if(!window.confirm('Опубликовать '+items.length+' отметок для всех водителей Оренбурга? В сообщениях будет видно твоё имя из MAX. Подтверди, что сведения наблюдались лично.'))return;
  try{
    const result=await sendCommunity('report_batch',{stationId,items:JSON.stringify(items),publicNameConsent:'YES'});
-   closeSheet();toast('Отправлено: '+result.added+' отметок. Ожидают подтверждений.');setTimeout(loadPublicFeed,1800);
+   if(!result.ok||!Array.isArray(result.ids)||result.added!==items.length)throw Error('Сервер вернул неполное подтверждение');closeSheet();toast('Опубликовано: '+result.added+' отметок. Ожидают подтверждений.');setTimeout(loadPublicFeed,1800);
  }catch(e){toast('Не отправлено: '+e.message)}
 }
 function saveMultiAvailability(){
@@ -208,15 +251,15 @@ async function saveReport(type,value){
  const x={type,value,fuel:type==='availability'||type==='price'?reportFuel:''};
  await saveMultiItems([x]);
 }
-function renderSubscriptions(){const p=state.prefs;const scope=$('scope-choices');scope.innerHTML='';Object.entries(scopes).forEach(([key,label])=>{const b=el('button','option'+(p.scopes.includes(key)?' active':''),esc(label));b.setAttribute('aria-pressed',p.scopes.includes(key)?'true':'false');b.addEventListener('click',()=>{if(p.scopes.includes(key))p.scopes=p.scopes.filter(x=>x!==key);else p.scopes.push(key);save();renderSubscriptions()});scope.appendChild(b)});
+function renderSubscriptions(){const p=state.prefs;const scope=$('scope-choices');scope.innerHTML='';Object.entries(scopes).forEach(([key,label])=>{const b=el('button','option'+(p.scopes.includes(key)?' active':''),esc(label));b.setAttribute('aria-pressed',p.scopes.includes(key)?'true':'false');b.addEventListener('click',()=>{if(p.scopes.includes(key))p.scopes=p.scopes.filter(x=>x!==key);else p.scopes.push(key);save();markPrefsDirty();renderSubscriptions()});scope.appendChild(b)});
 $('scope-helper').textContent='Можно выбрать несколько вариантов одновременно. Уведомления об одном событии не будут дублироваться. Для подписки на весь город включается группировка сообщений.';
  $('subscribe-district-section').hidden=!p.scopes.includes('districts');$('subscribe-brand-section').hidden=!p.scopes.includes('brands');$('subscribe-favs-section').hidden=!p.scopes.includes('favorites');
- function fillCheck(id,vals,field){const x=$(id);x.innerHTML='';vals.forEach(v=>{const label=el('label','check-row',`<input type="checkbox" ${p[field].includes(v)?'checked':''}><span>${esc(v)}</span>`);label.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p[field].includes(v))p[field].push(v);if(!e.target.checked)p[field]=p[field].filter(k=>k!==v);save()});x.appendChild(label)})}
+ function fillCheck(id,vals,field){const x=$(id);x.innerHTML='';vals.forEach(v=>{const label=el('label','check-row',`<input type="checkbox" ${p[field].includes(v)?'checked':''}><span>${esc(v)}</span>`);label.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p[field].includes(v))p[field].push(v);if(!e.target.checked)p[field]=p[field].filter(k=>k!==v);save();markPrefsDirty()});x.appendChild(label)})}
  fillCheck('sub-districts',districts,'districts');fillCheck('sub-brands',brandKeys,'brands');
  $('sub-favorites').innerHTML=state.favorites.length?state.favorites.map(id=>byId.get(id)).filter(Boolean).map(s=>`<div class="sub-fav">★ ${esc(s.name)} — ${esc(s.address)}</div>`).join(''):'<div class="empty">Пока ничего не добавлено в избранное.</div>';
- const ev=$('sub-events');ev.innerHTML='';Object.entries(EVENTS).forEach(([key,label])=>{const lab=el('label','check-row',`<input type="checkbox" ${p.events.includes(key)?'checked':''}><span>${esc(label)}</span>`);lab.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p.events.includes(key))p.events.push(key);if(!e.target.checked)p.events=p.events.filter(k=>k!==key);save()});ev.appendChild(lab)});
- $('my-fuel-choices').innerHTML='';fuels.forEach(f=>makeChip($('my-fuel-choices'),f,p.fuel===f,()=>{p.fuel=f;reportFuel=f;save();renderSubscriptions();setupFilters()}));
- const freq=$('frequency-choices');freq.innerHTML='';Object.entries(FREQ).forEach(([key,label])=>{const b=el('button','option'+(key===p.frequency?' active':''),esc(label));b.addEventListener('click',()=>{p.frequency=key;save();renderSubscriptions()});freq.appendChild(b)});
+ const ev=$('sub-events');ev.innerHTML='';Object.entries(EVENTS).forEach(([key,label])=>{const lab=el('label','check-row',`<input type="checkbox" ${p.events.includes(key)?'checked':''}><span>${esc(label)}</span>`);lab.querySelector('input').addEventListener('change',e=>{if(e.target.checked&&!p.events.includes(key))p.events.push(key);if(!e.target.checked)p.events=p.events.filter(k=>k!==key);save();markPrefsDirty()});ev.appendChild(lab)});
+ $('my-fuel-choices').innerHTML='';fuels.forEach(f=>makeChip($('my-fuel-choices'),f,p.fuel===f,()=>{p.fuel=f;reportFuel=f;save();markPrefsDirty();renderSubscriptions();setupFilters();updateMapMarkers()}));
+ const freq=$('frequency-choices');freq.innerHTML='';Object.entries(FREQ).forEach(([key,label])=>{const b=el('button','option'+(key===p.frequency?' active':''),esc(label));b.addEventListener('click',()=>{p.frequency=key;save();markPrefsDirty();renderSubscriptions()});freq.appendChild(b)});
  $('quiet-hours').checked=Boolean(p.quiet);$('weekly-digest').checked=Boolean(p.weekly);
 }
 function maxUserForDisplay(){
@@ -237,7 +280,32 @@ function renderMaxName(){
  $('avatar').textContent=(full||handle||'М').slice(0,1).toUpperCase();
  $('profile-source').textContent=u?'Имя из MAX · изменить можно только в профиле MAX':'Данные MAX ещё не получены · открой приложение внутри MAX';
 }
-function renderProfile(){ renderMaxName(); }
+function renderProfile(){renderMaxName();}
+function markPrefsDirty(){prefsDirty=true;const indicator=$('subs-state');if(indicator)indicator.textContent='Настройки изменены — нажми «Сохранить подписки»';}
+function applyRemotePrefs(p){
+ if(!p||typeof p!=='object')return;
+ state.prefs={...clone(defaults.prefs),...p};
+ for(const key of ['scopes','districts','brands','events'])if(!Array.isArray(state.prefs[key]))state.prefs[key]=[];
+ state.favorites=Array.isArray(p.favorites)?p.favorites.filter(id=>byId.has(id)):state.favorites;
+ save();renderSubscriptions();renderFavorites();setupFilters();renderList();
+}
+async function loadAccount(){
+ if(!liveWritesEnabled()||!getMaxInitData()||accountLoading||accountLoaded)return;
+ accountLoading=true;
+ try{const r=await sendCommunity('profile',{});
+  if(!r.ok)throw Error('Нет данных профиля');
+  $('rating-accuracy').textContent=r.accuracy==null?'—':Number(r.accuracy).toFixed(2);
+  $('rating-votes').textContent=r.confirmationRating==null?'—':Number(r.confirmationRating).toFixed(2);
+  $('rating-reports').textContent=Number(r.verified)||0;
+  if(r.preferences&&!prefsDirty)applyRemotePrefs(r.preferences);
+  const indicator=$('subs-state');if(indicator&&!prefsDirty)
+   indicator.textContent=r.preferences?(r.preferences.enabled?'Подписки сохранены на сервере':'Уведомления отключены'):'Уведомления не подключены';
+  accountLoaded=true;
+ }catch(e){/* Не выдаём локальные настройки за синхронизированные. */
+  const indicator=$('subs-state');if(indicator&&!prefsDirty)indicator.textContent='Не удалось проверить серверные подписки';
+ }finally{accountLoading=false;}
+}
+
 // Delegate dynamic card and sheet actions.
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-vote')){voteCommunity(b.dataset.reportId,b.dataset.vote);return}if(b.hasAttribute('data-fav')){toggleFav(b.dataset.fav);return}if(b.hasAttribute('data-detail')){showDetail(b.dataset.detail);return}if(b.hasAttribute('data-report')){chooseType(b.dataset.report);return}if(b.hasAttribute('data-type')){chooseReportType(b.dataset.type);return}if(b.hasAttribute('data-availability-fuel')){const f=b.dataset.availabilityFuel,v=b.dataset.availabilityValue;if(!fuels.includes(f)||!['есть','нет'].includes(v))return;multiAvailability[f]=multiAvailability[f]===v?null:v;document.querySelectorAll('[data-availability-fuel]').forEach(btn=>{if(btn.dataset.availabilityFuel===f){const active=multiAvailability[f]===btn.dataset.availabilityValue;btn.setAttribute('aria-pressed',active?'true':'false');btn.classList.toggle('active',active)}});return}if(b.hasAttribute('data-save-type')){saveReport(b.dataset.saveType,b.dataset.value);return}});
 document.querySelectorAll('.nav-button').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
@@ -250,27 +318,34 @@ $('sheet-content').addEventListener('click',e=>{
  if(e.target.id==='save-multi-prices')saveMultiPrices();
 });
 $('browse-for-favs').addEventListener('click',()=>switchTab('list'));
-$('quiet-hours').addEventListener('change',e=>{state.prefs.quiet=e.target.checked;save()});$('weekly-digest').addEventListener('change',e=>{state.prefs.weekly=e.target.checked;save()});
+$('quiet-hours').addEventListener('change',e=>{state.prefs.quiet=e.target.checked;save();markPrefsDirty()});$('weekly-digest').addEventListener('change',e=>{state.prefs.weekly=e.target.checked;save();markPrefsDirty()});
 $('save-subs').addEventListener('click',async()=>{
- if(!save())return;
+ save();
  if(!liveWritesEnabled()){toast('Сервер уведомлений временно недоступен');return;}
  if(!window.confirm('Подключить уведомления MAX? Идентификатор профиля и выбранные подписки будут сохранены в базе проекта.'))return;
  try{
-   const preferences={...state.prefs,favorites:state.favorites,enabled:true};
-   await sendCommunity('subscribe',{preferences:JSON.stringify(preferences),publicNameConsent:'YES'});
-   toast('Подписки сохранены на сервере. Не забудь нажать «Начать» в боте MAX.');
+   const p=state.prefs;
+   const target=p.scopes.includes('city')||p.scopes.includes('favorites')&&state.favorites.length>0||
+     p.scopes.includes('districts')&&p.districts.length>0||p.scopes.includes('brands')&&p.brands.length>0;
+   if(!target){toast('Выбери АЗС, район, сеть или весь город');return;}
+   if(!p.events.length||p.frequency==='minimal'&&!p.events.includes('closure')){
+     toast('Выбери события для уведомлений');return;
+   }
+   const preferences={...p,favorites:state.favorites,enabled:true};
+   const result=await sendCommunity('subscribe',{preferences:JSON.stringify(preferences),publicNameConsent:'YES'});if(!result.ok)throw Error('Сервер не сохранил подписки');
+   prefsDirty=false;$('subs-state').textContent='Подписки сохранены на сервере';toast('Подписки сохранены. Для сообщений от бота нажми «Начать» в MAX.');
  }catch(e){toast('Сервер не подтвердил подписки: '+e.message)}
 });
 const disable=$('disable-subs');if(disable)disable.addEventListener('click',async()=>{
  if(!window.confirm('Отключить все уведомления в MAX для этого профиля?'))return;
  if(!liveWritesEnabled()){toast('Сервер уведомлений временно недоступен');return;}
- try{await sendCommunity('subscribe',{preferences:JSON.stringify({...state.prefs,favorites:state.favorites,enabled:false}),publicNameConsent:'YES'});toast('Уведомления отключены');}
+ try{const result=await sendCommunity('subscribe',{preferences:JSON.stringify({...state.prefs,favorites:state.favorites,enabled:false}),publicNameConsent:'YES'});if(!result.ok)throw Error('Нет подтверждения сервера');prefsDirty=false;state.prefs.enabled=false;save();$('subs-state').textContent='Уведомления отключены';toast('Уведомления отключены');}
  catch(e){toast('Не удалось отключить: '+e.message)}
 });
 const deleteProfile=$('delete-profile');if(deleteProfile)deleteProfile.addEventListener('click',async()=>{
  if(!liveWritesEnabled()){toast('Сервер временно недоступен');return;}
  if(!window.confirm('Удалить все сообщения, подтверждения и подписки твоего профиля на сервере? Это необратимо.'))return;
- try{await sendCommunity('delete_account',{confirm:'DELETE'});toast('Данные участника удалены с сервера');setTimeout(loadPublicFeed,1500);}
+ try{const result=await sendCommunity('delete_account',{confirm:'DELETE'});if(!result.ok)throw Error('Нет подтверждения сервера');accountLoaded=false;prefsDirty=false;state=clone(defaults);save();renderSubscriptions();renderFavorites();$('subs-state').textContent='Данные удалены';$('rating-accuracy').textContent='—';$('rating-votes').textContent='—';$('rating-reports').textContent='0';toast('Данные участника удалены с сервера');setTimeout(loadPublicFeed,1500);}
  catch(e){toast('Удаление не подтверждено: '+e.message)}
 });
 const ratingButton=$('refresh-rating');if(ratingButton)ratingButton.addEventListener('click',async()=>{
