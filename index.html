@@ -4,10 +4,10 @@
 <meta name="theme-color" content="#101920"><meta name="description" content="ТОПЛИВО56 — адресный каталог АЗС Оренбурга по районам и сетям">
 <title>ТОПЛИВО56 • Оренбург</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=5.0.4">
+<link rel="stylesheet" href="style.css?v=5.0.5">
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://st.max.ru/js/max-web-app.js"></script>
-<script defer src="stations.js?v=5.0.4"></script><script defer src="config.js?v=5.0.4"></script><script defer src="app.js?v=5.0.4"></script>
+<script defer src="stations.js?v=5.0.4"></script><script defer src="config.js?v=5.0.5"></script><script defer src="app.js?v=5.0.5"></script><script defer src="max-auth-check.js?v=5.0.5"></script>
 </head><body><div class="app-shell">
 <header class="topbar"><div class="logo-icon" aria-hidden="true">⛽</div><div class="title-block"><b>ТОПЛИВО<span>56</span></b><small>ОРЕНБУРГ • МИНИ-ПРИЛОЖЕНИЕ MAX</small></div><div class="pilot-pill">ПИЛОТ</div></header>
 <main class="scroll-area" id="scroll-area">
@@ -46,6 +46,7 @@
 </section>
 <section class="section" id="tab-profile">
 <div class="section-heading intro"><div><span class="eyebrow">ВКЛАД В СООБЩЕСТВО</span><h1>Профиль и рейтинг</h1></div></div>
+<div class="setting-panel" id="max-auth-diagnostic"><h3>Проверка подключения MAX</h3><p class="helper">Однократная техническая проверка подлинности входа в мини-приложение. Сообщения и голосования останутся выключенными. Запускай тест только со своего аккаунта MAX.</p><div class="api-connection" id="max-auth-status" aria-live="polite">○ Проверка ещё не выполнялась</div><button class="outline-btn" type="button" id="check-max-auth">Проверить авторизацию MAX</button><p class="helper">Секретный токен никогда не передаётся в приложение. Стартовые данные MAX используются сервером для проверки подписи и не записываются в таблицу.</p></div>
 <div class="profile-card"><div id="avatar" class="avatar">56</div><div><b id="profile-name">Водитель Оренбурга</b><span>Псевдоним для будущих публикаций</span></div></div>
 <div class="setting-panel"><h3>Мой псевдоним</h3><p class="helper">Например, «Форд • 324». Не вводи госномер автомобиля или настоящее имя: они для сервиса не нужны.</p>
 <div class="alias-edit"><select id="alias-brand" aria-label="Название автомобиля"><option>Форд</option><option>Рено</option><option>Мазда</option><option>Лада</option><option>Киа</option><option>Тойота</option><option>Другой водитель</option></select><input id="alias-number" type="text" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" aria-label="Три цифры псевдонима"></div>
